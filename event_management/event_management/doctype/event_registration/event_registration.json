@@ -1,0 +1,279 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-30 12:21:34.428672",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_urtp",
+  "event_name",
+  "event_location",
+  "start_date",
+  "number_of_delegates",
+  "division",
+  "setup",
+  "column_break_oowh",
+  "organization_name",
+  "event_venue",
+  "end_date",
+  "charges_per_delegate",
+  "type",
+  "revenue",
+  "reminder_details_section",
+  "column_break_ratx",
+  "reminder_sent",
+  "column_break_mmcl",
+  "reminder_sent_date",
+  "delegates_section",
+  "delegates",
+  "attachments_section",
+  "pdf_attachments",
+  "confirmation_section",
+  "column_break_aqpm",
+  "all_confirmed",
+  "column_break_bndb",
+  "confirmation_summary",
+  "system_information_section",
+  "event_identifier",
+  "welcome_email_sent",
+  "column_break_ejac",
+  "invitation_sent",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_urtp",
+   "fieldtype": "Section Break",
+   "label": "Event Details"
+  },
+  {
+   "fieldname": "event_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Event Name",
+   "options": "Event Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_location",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Event Location",
+   "options": "Event Location",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "number_of_delegates",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Number of Delegates",
+   "reqd": 1
+  },
+  {
+   "fieldname": "division",
+   "fieldtype": "Link",
+   "label": "Division",
+   "options": "Division",
+   "reqd": 1
+  },
+  {
+   "fieldname": "setup",
+   "fieldtype": "Select",
+   "label": "Setup",
+   "options": "Physical\nVirtual\nHybrid",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_oowh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "organization_name",
+   "fieldtype": "Link",
+   "label": "Organization Name",
+   "options": "Event Organization",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_venue",
+   "fieldtype": "Link",
+   "label": "Event Venue",
+   "options": "Event Venue",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "charges_per_delegate",
+   "fieldtype": "Currency",
+   "label": "Charges Per Delegate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Local\nInternation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "revenue",
+   "fieldtype": "Currency",
+   "label": "Revenue",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "reminder_details_section",
+   "fieldtype": "Section Break",
+   "label": "Reminder Details"
+  },
+  {
+   "fieldname": "column_break_ratx",
+   "fieldtype": "Column Break",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "reminder_sent",
+   "fieldtype": "Check",
+   "label": "Reminder Sent"
+  },
+  {
+   "fieldname": "column_break_mmcl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reminder_sent_date",
+   "fieldtype": "Date",
+   "label": "Reminder Sent Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attachments_section",
+   "fieldtype": "Section Break",
+   "label": "Attachments"
+  },
+  {
+   "fieldname": "pdf_attachments",
+   "fieldtype": "Attach",
+   "label": "PDF Attachments"
+  },
+  {
+   "fieldname": "system_information_section",
+   "fieldtype": "Section Break",
+   "label": "System Information"
+  },
+  {
+   "fieldname": "event_identifier",
+   "fieldtype": "Data",
+   "label": "Event Identifier",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "welcome_email_sent",
+   "fieldtype": "Check",
+   "label": "Welcome Email Sent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ejac",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "invitation_sent",
+   "fieldtype": "Check",
+   "label": "Invitation Sent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Event Registration",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "confirmation_section",
+   "fieldtype": "Section Break",
+   "label": "Confirmation"
+  },
+  {
+   "fieldname": "confirmation_summary",
+   "fieldtype": "HTML",
+   "label": "Confirmation Summary",
+   "options": "<div id=\"confirmation-summary\"></div>"
+  },
+  {
+   "fieldname": "column_break_aqpm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "all_confirmed",
+   "fieldtype": "Check",
+   "label": "All Confirmed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delegates_section",
+   "fieldtype": "Section Break",
+   "label": "Delegates"
+  },
+  {
+   "fieldname": "column_break_bndb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "delegates",
+   "fieldtype": "Table",
+   "label": "Delegates",
+   "options": "Event Delegate"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-12-31 15:51:46.465351",
+ "modified_by": "Administrator",
+ "module": "Event Management",
+ "name": "Event Registration",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

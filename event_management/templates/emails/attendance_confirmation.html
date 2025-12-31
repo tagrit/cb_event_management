@@ -1,0 +1,53 @@
+{% set subject %}
+ATTENDANCE CONFIRMATION AND PAYMENT STATUS – {{ division }} :
+{{ event.event_name }}, Scheduled For {{ event_date }}, At {{ location }}
+{% endset %}
+
+<p>Dear {{ delegate.full_name }},</p>
+
+<p>The countdown has officially begun.</p>
+
+<!-- <p>
+  <strong>
+    <a href="{{ confirmation_link }}">
+      ATTENDANCE CONFIRMATION
+    </a>
+  </strong>
+</p> -->
+
+<p>
+Kindly confirm the <strong>Payment</strong> and <strong>Attendance Status</strong> for the upcoming
+training scheduled for <strong>{{ event_date }}</strong> at
+<strong>{{ location }}</strong>.
+</p>
+
+<p><strong>Event Name:</strong> {{ event.event_name }}</p>
+
+<p><strong>Expected Attendees:</strong></p>
+<ul>
+  {% for client in client_list %}
+    <li>{{ client }}</li>
+  {% endfor %}
+</ul>
+
+<h4>PAYMENT STATUS</h4>
+
+<p>
+As part of the business capacity recovery measures, management has approved a policy
+requiring clients to pay for services and seminars upfront.
+</p>
+
+<p>
+Upon approval of the training, we will also require an
+<strong>LSO / Commitment Letter</strong> from your organization.
+</p>
+
+<p>
+Kindly share the <strong>payment evidence</strong> with our finance team via email:
+<a href="mailto:customerservice@capabuil.com">customerservice@capabuil.com</a>
+</p>
+
+<p>
+Kind regards,<br>
+<strong>{{ company_name }}</strong>
+</p>

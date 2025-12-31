@@ -4,6 +4,7 @@ app_publisher = "tagrit"
 app_description = "Event Management Application"
 app_email = "info@tagrit.com"
 app_license = "mit"
+app_home = "/app/workspace/" + app_name 
 
 # Apps
 # ------------------
@@ -11,15 +12,17 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "event_management",
-# 		"logo": "/assets/event_management/logo.png",
-# 		"title": "Event Management",
-# 		"route": "/event_management",
-# 		"has_permission": "event_management.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "event_management",
+		"logo": "/assets/event_management/logo.png",
+		"title": "Event Management",
+        "route": "/app/workspace/" + app_name,
+		"has_permission": "event_management.api.permission.has_app_permission"
+	}
+]
+
+modules = ["Event Management"]
 
 # Includes in <head>
 # ------------------
@@ -98,6 +101,8 @@ app_license = "mit"
 
 # before_app_install = "event_management.utils.before_app_install"
 # after_app_install = "event_management.utils.after_app_install"
+
+before_migrate = "event_management.setup.fix_terms_and_conditions"
 
 # Integration Cleanup
 # -------------------
@@ -241,4 +246,5 @@ app_license = "mit"
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
 
