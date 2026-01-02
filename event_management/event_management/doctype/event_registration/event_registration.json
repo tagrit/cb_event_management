@@ -19,20 +19,21 @@
   "charges_per_delegate",
   "type",
   "revenue",
+  "delegates_section",
+  "delegates",
   "reminder_details_section",
   "column_break_ratx",
   "reminder_sent",
   "column_break_mmcl",
   "reminder_sent_date",
-  "delegates_section",
-  "delegates",
   "attachments_section",
   "pdf_attachments",
+  "column_break_bndb",
   "confirmation_section",
   "column_break_aqpm",
-  "all_confirmed",
-  "column_break_bndb",
   "confirmation_summary",
+  "all_confirmed",
+  "final_report_sent",
   "system_information_section",
   "event_identifier",
   "welcome_email_sent",
@@ -225,11 +226,11 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "all_confirmed",
    "fieldtype": "Check",
-   "label": "All Confirmed",
-   "read_only": 1
+   "label": "All Confirmed"
   },
   {
    "fieldname": "delegates_section",
@@ -246,13 +247,20 @@
    "fieldtype": "Table",
    "label": "Delegates",
    "options": "Event Delegate"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "final_report_sent",
+   "fieldtype": "Check",
+   "label": "Final Report Sent"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-31 15:51:46.465351",
+ "modified": "2025-12-31 18:58:32.816223",
  "modified_by": "Administrator",
  "module": "Event Management",
  "name": "Event Registration",

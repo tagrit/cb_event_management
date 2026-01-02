@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Training Invitation Letter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            background: white;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .date-section {
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .company-info {
+            text-align: right;
+        }
+
+        .recipient {
+            margin-bottom: 15px;
+        }
+
+        .recipient p {
+            margin-bottom: 2px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .greeting {
+            margin-bottom: 12px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .greeting-text {
+            margin: 12px 0;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .subject-line {
+            background: #0066b2;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            margin: 12px 0;
+            border-radius: 3px;
+        }
+
+        .subject-line h3 {
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .event-details {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 11px;
+            margin: 12px 0;
+            font-size: 11px;
+        }
+
+        .event-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .event-details th {
+            background: #667eea;
+            color: white;
+            padding: 6px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .event-details td {
+            padding: 8px 6px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .body-text {
+            margin: 12px 0;
+            text-align: justify;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .learn-better {
+            background: #0066b2;
+            color: white;
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 14px;
+            margin: 12px 0;
+            border-radius: 3px;
+        }
+
+        .vision-section {
+            background: #e3f2fd;
+            padding: 11px;
+            border-radius: 4px;
+            margin: 12px 0;
+            font-size: 9px;
+        }
+
+        .vision-section p {
+            margin-bottom: 4px;
+            font-style: italic;
+        }
+
+        .signature-section {
+            margin-top: 20px;
+            font-size: 11px;
+        }
+
+        .signature-section p {
+            margin: 2px 0;
+            font-weight: 600;
+        }
+
+        .signature-placeholder {
+            width: 150px;
+            height: 50px;
+            border: 2px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #999;
+            margin: 11px 0;
+        }
+
+        @media print {
+            body {
+                padding: 11px;
+            }
+
+            .container {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="date-section">
+                <p>{{ frappe.utils.formatdate(frappe.utils.nowdate(), "dd MMMM yyyy") }}</p>
+            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+                <tr>
+                    <!-- LEFT: LOGO -->
+                    <td style="width: 40%; vertical-align: middle; text-align: left;">
+                         {% if is_pdf %}
+                            <img src="data:image/png;base64,{{ logo_base64 }}" style="max-height:70px;width:auto;">
+                         {% else %}
+                            <img src="{{ frappe.utils.get_url('/assets/event_management/images/capabuil_logo.png') }}" 
+                                style="max-height:70px;width:auto;">
+                         {% endif %}
+                    </td>
+
+                    <!-- RIGHT: COMPANY INFO -->
+                    <td style="width: 60%; vertical-align: middle; text-align: right;">
+                        <div style="font-size:11px; line-height:1.5;">
+                            <strong>
+                                Twiga Towers, 7th Floor<br>
+                                +254 722 354 177 | +254 722 998 105
+                            </strong><br>
+                            P.O. Box 2495-00200 Nairobi, Kenya<br>
+                            <a href="mailto:info@capabuil.com" style="color:black; text-decoration:none;">
+                                info@capabuil.com
+                            </a> |
+                            <a href="https://www.capabuil.com" style="color:black; text-decoration:none;">
+                                www.capabuil.com
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="recipient">
+            <p>Attention:</p>
+            <p>The Training Manager,</p>
+            <p>{{ event.organization_name }}</p>
+        </div>
+
+        <div class="greeting">
+            <p>Dear Sir/Madam,</p>
+        </div>
+
+        <div class="greeting-text">
+            <p>Warm Greetings from CapaBuil -- We Laud Your Choice to Join & Stay With CapaBuil's Exclusive Community of
+                Professionals.</p>
+        </div>
+
+        <div class="subject-line">
+            <h3>RE: {{ event.event_name }}</h3>
+        </div>
+
+        <p style="font-size: 11px; margin: 15px 0;">
+            <strong>The CapaBuil Training Committee invites you to nominate
+                {% if event.delegates %}
+                {%- for delegate in event.delegates -%}
+                {{ delegate.first_name }} {{ delegate.last_name }}{% if not loop.last %}, {% endif %}
+                {%- endfor -%}
+                {% else %}
+                {{ event.number_of_delegates }} delegate{{ 's' if event.number_of_delegates > 1 else '' }}
+                {% endif %}
+                and other professionals to the upcoming training on {{ event.event_name }};</strong>
+        </p>
+
+        <div class="event-details">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Venue</th>
+                        <th>Cost Tax Inc. Per Delegate</th>
+                        <th>Eligible Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>{{ frappe.utils.formatdate(event.start_date, "dd MMM yyyy") }} - {{
+                                frappe.utils.formatdate(event.end_date, "dd MMM yyyy") }}</strong></td>
+                        <td><strong>{{ event.event_venue }}, {{ event.event_location }}</strong></td>
+                        <td><strong>KES {{ "{:,.2f}".format(event.charges_per_delegate) }}</strong></td>
+                        <td><strong>25 CPD POINTS</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="body-text">
+            <p><strong>The training will integrate lecture/case study and practical examples to deliver effective
+                    learning that will bring new value to your organization.</strong>
+                This intensive session is designed to equip professionals with the critical skills and knowledge needed
+                to navigate the evolving landscape of modern career demands.
+                Through expert-led discussions, real-world case studies, and hands-on exercises, participants will gain
+                valuable insights into building resilient, scalable solutions
+                that align with industry's best practices. Join us to future-proof your organization's workforce and
+                individual operational excellence.
+                We look forward to your participation in this transformative learning experience.</p>
+        </div>
+
+        <div class="learn-better">
+            LEARN BETTER!
+        </div>
+
+        <div class="vision-section">
+            <p><strong>Our Vision:</strong> A professional competency development leader and value creator for Africa
+            </p>
+            <p><strong>Our Purpose:</strong> To provide unlimited opportunities for learning and empowerment of people.
+            </p>
+        </div>
+
+        <div class="signature-section">
+            <p>Yours sincerely,</p>
+            {% if signature_base64 %}
+                {% if is_pdf %}
+                    <img src="data:image/png;base64,{{ signature_base64 }}" class="signature-img">
+                {% else %}
+                    <img src="{{ frappe.utils.get_url('/assets/event_management/images/capbuil_signature.png') }}" class="signature-img">
+                {% endif %}
+            {% endif %}
+            <p><strong>Reagan Nyadimo,</strong><br>
+                Executive Director & CEO</p>
+        </div>
+    </div>
+</body>
+
+</html>

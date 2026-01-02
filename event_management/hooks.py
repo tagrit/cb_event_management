@@ -12,17 +12,6 @@ app_home = "/app/workspace/" + app_name
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-add_to_apps_screen = [
-	{
-		"name": "event_management",
-		"logo": "/assets/event_management/logo.png",
-		"title": "Event Management",
-        "route": "/app/workspace/" + app_name,
-		"has_permission": "event_management.api.permission.has_app_permission"
-	}
-]
-
-modules = ["Event Management"]
 
 # Includes in <head>
 # ------------------
@@ -102,8 +91,6 @@ modules = ["Event Management"]
 # before_app_install = "event_management.utils.before_app_install"
 # after_app_install = "event_management.utils.after_app_install"
 
-before_migrate = "event_management.setup.fix_terms_and_conditions"
-
 # Integration Cleanup
 # -------------------
 # To clean up dependencies/integrations with other apps
@@ -170,6 +157,17 @@ before_migrate = "event_management.setup.fix_terms_and_conditions"
 # 		"event_management.tasks.monthly"
 # 	],
 # }
+
+scheduler_events = {
+    "cron": {
+        "0 9 * * 1": [
+            "event_management.event_management.doctype.event_registration.event_registration.send_automated_reminders"
+        ],
+        "0 9 * * 3": [
+            "event_management.event_management.doctype.event_registration.event_registration.trigger_automated_wednesday_report"
+        ]
+    }
+}
 
 # Testing
 # -------
@@ -246,5 +244,4 @@ before_migrate = "event_management.setup.fix_terms_and_conditions"
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-
 

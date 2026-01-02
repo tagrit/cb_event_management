@@ -8,7 +8,8 @@
   "admin_email",
   "facilitator_name",
   "column_break_sdnt",
-  "calendar_link"
+  "calendar_link",
+  "event_logo"
  ],
  "fields": [
   {
@@ -29,13 +30,18 @@
    "fieldname": "calendar_link",
    "fieldtype": "Data",
    "label": "Calendar Link"
+  },
+  {
+   "fieldname": "event_logo",
+   "fieldtype": "Attach",
+   "label": "Event Logo"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-12-31 16:52:20.499909",
+ "modified": "2026-01-01 19:49:23.174298",
  "modified_by": "Administrator",
  "module": "Event Management",
  "name": "Event Management Setting",

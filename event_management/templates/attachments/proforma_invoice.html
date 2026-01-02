@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { size: A4; margin: 15mm; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #333; line-height: 1.4; }
+        
+        .header-table { width: 100%; margin-bottom: 20px; }
+        .company-address { text-align: right; font-size:11px; color: #555; }
+        .company-address strong { color: #0066b2; display: block; font-size: 12px; margin-bottom: 4px; }
+
+        .banner { background: #f0f4f8; padding: 8px; text-align: center; font-size: 9px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #dce4ec; }
+        .banner a { color: #0066b2; font-weight: bold; text-decoration: none; }
+
+        .invoice-meta { display: flex; justify-content: space-between; margin-bottom: 20px; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .items-table th { background: #0066b2; color: white; padding: 10px; text-align: left; text-transform: uppercase; }
+        .items-table td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .amount { text-align: right; font-weight: bold; }
+
+        /* FIXED BANK SECTION USING TABLE */
+        .bank-table { width: 100%; border-spacing: 10px 0; margin-left: -10px; margin-right: -10px; }
+        .bank-col { 
+            width: 50%; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 4px; 
+            padding: 10px; 
+            background: #fafafa; 
+            vertical-align: top;
+        }
+        .bank-title { font-weight: bold; color: #0066b2; border-bottom: 1px solid #eee; margin-bottom: 8px; padding-bottom: 4px; font-size: 11px; }
+        
+        .mpesa-row { margin-top: 10px; background: #4caf50; color: white; padding: 8px; text-align: center; border-radius: 4px; font-weight: bold; }
+        .notes { background: #fff9db; border: 1px solid #ffe066; padding: 12px; border-radius: 4px; margin-top: 15px; }
+        .footer { text-align: center; margin-top: 20px; font-size: 11px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
+        .warning { color: white; background: #e03131; padding: 8px; text-align: center; font-weight: bold; margin-top: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td class="logo-cell">
+                {% if is_pdf %}
+                    <img src="data:image/png;base64,{{ logo_base64 }}" style="max-height:70px;width:auto;">
+                {% else %}
+                    <img src="{{ frappe.utils.get_url('/assets/event_management/images/capabuil_logo.png') }}" 
+                        style="max-height:70px;width:auto;">
+                {% endif %}
+            </td>
+            <td class="company-address">
+                <strong>CAPABUIL LTD</strong>
+                Twiga Towers, 7th Floor, Nairobi Kenya<br>
+                +254 722 354 177 | +254 722 998 105<br>
+                P.O. Box 2495-00200 Nairobi<br>
+                info@capabuil.com | www.capabuil.com
+            </td>
+        </tr>
+    </table>
+
+    <div class="banner">
+        IF YOU WANT TO INSPIRE SUCCESS, DO IT EARLY | <a href="https://capabuil.com/">REGISTER FOR KIDS MONEY</a> | <a href="https://capabuil.com/">JOIN RETIREWELL PROGRAMS</a> 
+    </div>
+
+    <div class="invoice-meta">
+        <div style="float: left;">
+            <div><strong>Organization:</strong> {{ event.organization_name }}</div> 
+            
+            <div><strong>Profoma For:</strong>TRAINING</div> 
+            
+        </div>
+        <div style="float: right; text-align: right;">
+            <div><strong>Date:</strong> {{ frappe.utils.formatdate(frappe.utils.nowdate()) }}</div> 
+            
+            <div><strong>Proforma Invoice No:</strong> {{ event.name }}</div>
+            
+        </div>
+        <div style="clear: both;"></div>
+    </div>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th style="width: 100px; text-align: right;">Rate (Kes)</th>
+                <th style="width: 120px; text-align: right;">Amount (Kes)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                <strong>Training fee for 
+                {% if event.delegates %}
+                    {%- for delegate in event.delegates -%}
+                        {{ delegate.first_name }} {{ delegate.last_name }}{% if not loop.last %}, {% endif %}
+                    {%- endfor -%}
+                {% else %}
+                    {{ event.number_of_delegates }} Delegate(s)
+                {% endif %}
+                </strong><br> 
+                Course: {{ event.event_name }}<br> 
+                <em>Period: {{ frappe.utils.formatdate(event.start_date) }} - {{ frappe.utils.formatdate(event.end_date) }}</em><br> 
+                <em>Venue: {{ event.event_venue }}, {{ event.event_location }}</em> 
+            </td>
+                <td class="amount">{{ "{:,.2f}".format(event.charges_per_delegate) }}</td> 
+                <td class="amount">{{ "{:,.2f}".format(event.number_of_delegates * event.charges_per_delegate) }}</td> 
+            </tr>
+            <tr>
+                <td colspan="2" style="text-align: right;">Tax (VAT @ 16%)</td> 
+                <td class="amount">{{ "{:,.2f}".format((event.number_of_delegates * event.charges_per_delegate) * 0.16) }}</td> 
+            </tr>
+            <tr style="background: #f8f9fa; font-size: 13px;">
+                <td colspan="2" style="text-align: right;"><strong>TOTAL</strong></td> 
+                <td class="amount" style="color: #0066b2;"><strong>{{ "{:,.2f}".format(event.revenue) }}</strong></td> 
+            </tr>
+        </tbody>
+    </table>
+
+    <table class="bank-table">
+        <tr>
+            <td class="bank-col">
+                <div class="bank-title">BANK: CFC Stanbic</div> 
+                Branch: Garden City Branch<br> 
+                Account Name: CapaBuil Ltd<br> 
+                Account Number: <strong>0100003293399</strong> 
+            </td>
+            <td class="bank-col">
+                <div class="bank-title">BANK: KCB</div> 
+                Branch: Garden City Branch<br> 
+                Account Name: CapaBuil Ltd<br> 
+                Account Number: <strong>1232573868</strong> 
+            </td>
+        </tr>
+    </table>
+
+    <div class="mpesa-row">
+        LIPA NA M-PESA: Buy Goods & Services | Till No. 5264625 
+    </div>
+
+    <div class="notes">
+        <strong>NOTE: THIS IS NOT A TAX INVOICE</strong><br> 
+        1. Cheques should be addressed to CapaBuil Ltd  | 2. Ensure payment BEFORE event  | 3. Send proof of payment 
+    </div>
+
+    <div class="footer">
+        DIT NO- NITA/TRN/958 | KRA PIN NO: P051447170J<br> 
+        <div class="warning">THIS EVENT WILL NOT BE CANCELLED OR POSTPONED</div> 
+    </div>
+</body>
+</html>

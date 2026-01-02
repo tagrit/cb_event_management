@@ -1,0 +1,112 @@
+[
+ {
+  "charts": [],
+  "content": "[{\"id\":\"H-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h5\\\"><b>EVENT OVERVIEW</b></span>\",\"col\":12}},{\"id\":\"S-1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Draft Events\",\"col\":4}},{\"id\":\"S-2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Confirmed\",\"col\":4}},{\"id\":\"S-3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Pending\",\"col\":4}},{\"id\":\"SP-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"H-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h6\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"C-1\",\"type\":\"card\",\"data\":{\"card_name\":\"Event Planning\",\"col\":4}},{\"id\":\"C-2\",\"type\":\"card\",\"data\":{\"card_name\":\"Delegates & Attendance\",\"col\":4}},{\"id\":\"C-3\",\"type\":\"card\",\"data\":{\"card_name\":\"Settings\",\"col\":4}}]",
+  "docstatus": 0,
+  "doctype": "Workspace",
+  "icon": "calendar",
+  "indicator_color": "green",
+  "is_standard": 1,
+  "public": 1,
+  "sequence_id": 10,
+  "label": "Event Management",
+  "module": "Event Management",
+  "name": "Event Management",
+  "title": "Event Management",
+  "shortcuts": [
+   {
+    "color": "Blue",
+    "label": "Draft Events",
+    "link_to": "Event Registration",
+    "stats_filter": "{\"docstatus\": 0}",
+    "type": "DocType"
+   },
+   {
+    "color": "Green",
+    "label": "Confirmed",
+    "link_to": "Event Registration",
+    "stats_filter": "{\"all_confirmed\": 1}",
+    "type": "DocType"
+   },
+   {
+    "color": "Orange",
+    "label": "Pending",
+    "link_to": "Event Registration",
+    "stats_filter": "{\"all_confirmed\": 0, \"docstatus\": 1}",
+    "type": "DocType"
+   }
+  ],
+  "links": [
+   {
+    "label": "Event Planning",
+    "link_type": "DocType",
+    "type": "Card Break"
+   },
+   {
+    "label": "Event Dashboard",
+    "link_to": "event-dashboard",
+    "link_type": "Page",
+    "type": "Link"
+    },
+   {
+    "label": "Event Registration",
+    "link_to": "Event Registration",
+    "link_type": "DocType",
+    "onboard": 1,
+    "type": "Link"
+   },
+   {
+    "label": "Event Venues",
+    "link_to": "Event Venue",
+    "link_type": "DocType",
+    "type": "Link"
+   },
+   {
+    "label": "Event Locations",
+    "link_to": "Event Location",
+    "link_type": "DocType",
+    "type": "Link"
+   },
+   {
+    "label": "Delegates & Attendance",
+    "link_type": "DocType",
+    "type": "Card Break"
+   },
+   {
+    "label": "All Events with Delegates",
+    "link_to": "Event Registration",
+    "link_type": "DocType",
+    "type": "Link"
+   },
+   {
+    "label": "Pending Confirmations",
+    "link_to": "Event Registration",
+    "link_type": "DocType",
+    "type": "Link"
+   },
+   {
+    "label": "Fully Confirmed",
+    "link_to": "Event Registration",
+    "link_type": "DocType",
+    "type": "Link"
+   },
+   {
+    "label": "Settings",
+    "link_type": "DocType",
+    "type": "Card Break"
+   },
+   {
+    "label": "Event Settings",
+    "link_to": "Event Management Setting",
+    "link_type": "DocType",
+    "type": "Link"
+   },
+   {
+    "label": "Email Templates",
+    "link_to": "Email Template",
+    "link_type": "DocType",
+    "type": "Link"
+   }
+  ]
+ }
+]
