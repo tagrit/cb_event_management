@@ -29,16 +29,27 @@ frappe.ui.form.on('Event Registration', {
         }
         
         // Button to send welcome email to confirmed delegates only
-        if (frm.doc.docstatus === 1 && !frm.doc.welcome_email_sent) {
+       if ((frm.doc.docstatus === 1 || frm.doc.amended_from) && !frm.doc.welcome_email_sent) {
             frm.add_custom_button(__('Send Welcome Email to Confirmed'), function() {
-                frappe.call({
-                    method: 'event_management.event_management.doctype.event_registration.event_registration.send_welcome_email_to_confirmed',
-                    args: {
-                        event_name: frm.doc.name
-                    },
-                    callback: function(r) {
-                        frm.reload_doc();
-                    }
+                
+                // 1. Disable the button immediately to prevent double-click
+                frm.set_df_property('send_welcome_email_btn'); 
+                
+                frappe.confirm(__('Are you sure you want to send welcome emails?'), () => {
+                    frappe.call({
+                        method: 'event_management.event_management.doctype.event_registration.event_registration.send_welcome_email_to_confirmed',
+                        args: {
+                            event_name: frm.doc.name
+                        },
+                        btn: $('.primary-action'), // Shows a spinner on the main button
+                        callback: function(r) {
+                            frm.reload_doc();
+                        },
+                        error: function() {
+                            // Re-enable on error so they can try again
+                            frm.set_df_property('send_welcome_email_btn', 'disabled', 0);
+                        }
+                    });
                 });
             });
         }

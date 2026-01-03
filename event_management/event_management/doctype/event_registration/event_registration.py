@@ -5,7 +5,8 @@ from frappe.utils.pdf import get_pdf
 import hashlib
 import json
 import base64
-
+from frappe import _  
+import os
 
 class EventRegistration(Document):
     def validate(self):
@@ -27,6 +28,26 @@ class EventRegistration(Document):
                 delegate.confirmation_token = self.generate_confirmation_token(delegate.email)
 
         self.update_all_confirmed_status()
+        
+    def before_insert(self):
+        """Runs once when the document is first created"""
+        self.set_default_attachments()
+
+    def set_default_attachments(self):
+        """Pre-populate the child table with standard document requirements"""
+        default_docs = [
+            {"name": "Program Outline", "desc": "Detailed schedule of the training sessions."},
+            {"name": "Seminar Details", "desc": "Overview of topics, speakers, and objectives."},
+            {"name": "Accommodations & Amenities", "desc": "Information regarding stay and local facilities."}
+        ]
+
+        # Only add if the table is empty to avoid duplicates
+        if not self.get("welcome_attachments"):
+            for doc in default_docs:
+                self.append("welcome_attachments", {
+                    "document_name": doc["name"],
+                    "description": doc["desc"]
+                })
         
     def update_all_confirmed_status(self):
         """Check if all delegates have confirmed"""
@@ -70,7 +91,11 @@ class EventRegistration(Document):
         self.all_confirmed = 1 if all_confirmed else 0
 
     def on_submit(self):
-        self.send_invitations_to_all_delegates()
+        # Only send invitations if this is NOT an amendment
+        if not self.amended_from:
+            self.send_invitations_to_all_delegates()
+        else:
+            frappe.msgprint(_("This is an amended record. Invitations were not re-sent automatically."))
 
     def _get_attendance_email_template(self):
         """Helper to resolve template using exact name from your patch"""
@@ -151,47 +176,54 @@ class EventRegistration(Document):
     def _generate_pdf_attachments(self, template_args):
         attachments = []
         try:
-            # We add 'is_pdf': True so the template can switch from URL to local path
-            template_args.update({"is_pdf": True})
-            
+            # Ensure the template knows it's rendering for a PDF
             template_args.update({"is_pdf": True})
 
-            # Add absolute logo path for PDF rendering (avoids sandbox issues)
-            # Read and encode logo as base64
-            logo_path = frappe.get_app_path(
-                'event_management', 'public', 'images', 'capabuil_logo.png'
-            )
+            # 1. Fetch paths from Event Management Setting
+            settings = frappe.get_doc("Event Management Setting")
             
-            with open(logo_path, 'rb') as f:
-                logo_base64 = base64.b64encode(f.read()).decode('utf-8')
-            
-    
-            # Read and encode signature as base64
-            signature_path = frappe.get_app_path(
-                'event_management', 'public', 'images', 'capabuil_signature.png'
-            )
-            
-            signature_base64 = None
-            with open(signature_path, 'rb') as f:
+            # 2. Helper to find the file on the server (handles Public and Private)
+            def get_full_path(file_url):
+                if not file_url: 
+                    return None
+                clean_url = file_url.lstrip("/")
+                # If it's private, it's in the site root's private folder
+                if clean_url.startswith("private/"):
+                    return frappe.get_site_path(clean_url)
+                # Otherwise, it's in the public folder
+                return frappe.get_site_path("public", clean_url)
+
+            # 3. Process Logo (Dynamic Base64)
+            logo_path = get_full_path(settings.company_logo)
+            logo_base64 = ""
+            if logo_path and os.path.exists(logo_path):
+                with open(logo_path, 'rb') as f:
+                    logo_base64 = base64.b64encode(f.read()).decode('utf-8')
+
+            # 4. Process Signature (Dynamic Base64)
+            signature_path = get_full_path(settings.company_signature)
+            signature_base64 = ""
+            if signature_path and os.path.exists(signature_path):
+                with open(signature_path, 'rb') as f:
                     signature_base64 = base64.b64encode(f.read()).decode('utf-8')
-            
+
+            # 5. Add encoded data to template arguments
             template_args.update({
                 "logo_base64": logo_base64,
                 "signature_base64": signature_base64
             })
 
-            # Generate Invitation
+            # 6. Generate Invitation PDF
             invitation_html = frappe.render_template(
                 "event_management/templates/attachments/training_invitation_letter.html",
                 template_args
             )
-            
             attachments.append({
                 "fname": f"Invitation_{self.name}.pdf",
                 "fcontent": get_pdf(invitation_html)
             })
             
-            # Generate Proforma
+            # 7. Generate Proforma PDF
             invoice_html = frappe.render_template(
                 "event_management/templates/attachments/proforma_invoice.html",
                 template_args
@@ -201,9 +233,9 @@ class EventRegistration(Document):
                 "fcontent": get_pdf(invoice_html)
             })
             
-        except Exception as e:
-            # Log the full traceback so you can see the exact error in Error Log
-            frappe.log_error(frappe.get_traceback(), "PDF Attachment Failed")
+        except Exception:
+            # Log the full traceback to the 'Error Log' DocType
+            frappe.log_error(frappe.get_traceback(), "PDF Attachment Generation Failed")
         
         return attachments
             
@@ -481,26 +513,39 @@ def _generate_event_report_html(events):
 
 @frappe.whitelist()
 def send_welcome_email_to_confirmed(event_name):
-    """Send welcome email only to confirmed delegates using the Event Welcome template"""
+    """Send welcome email with user-specified attachments to confirmed delegates"""
     if not event_name:
         frappe.throw("Missing event name")
 
     event = frappe.get_doc("Event Registration", event_name)
 
-    # Get only confirmed delegates
+    # 1. Get only confirmed delegates
     confirmed_delegates = [d for d in event.delegates if d.confirmed]
-
     if not confirmed_delegates:
         frappe.msgprint("No confirmed delegates yet!")
         return
 
-    # Resolve template using the new 'Event Welcome' name
+    # 2. Collect the user-uploaded attachments from the child table
+    # 2. Collect the user-uploaded attachments from the child table
+    custom_attachments = []
+    for row in event.get("welcome_attachments"):
+        if row.file:
+            # Get the File document using the URL
+            file_doc = frappe.get_doc("File", {"file_url": row.file})
+            
+            # Use the ACTUAL filename from the system (e.g., seminar_v2.pdf)
+            # This ensures the extension (.pdf, .png) is always present
+            custom_attachments.append({
+                "fname": file_doc.file_name, 
+                "fcontent": file_doc.get_content()
+            })
+
+    # 3. Resolve template
     template_info = _get_event_welcome_template()
     success_count = 0
 
     for delegate in confirmed_delegates:
         try:
-            # Prepare template variables exactly as defined in your patch
             template_args = {
                 "event": event,
                 "delegate": {
@@ -520,6 +565,7 @@ def send_welcome_email_to_confirmed(event_name):
                     recipients=[delegate.email],
                     subject=subject,
                     message=message,
+                    attachments=custom_attachments, # Attach the user documents here
                     now=True
                 )
             else:
@@ -528,6 +574,7 @@ def send_welcome_email_to_confirmed(event_name):
                     subject=f"Welcome to {event.event_name}",
                     template=template_info["path"],
                     args=template_args,
+                    attachments=custom_attachments # Attach here as well
                 )
             success_count += 1
 
@@ -536,7 +583,7 @@ def send_welcome_email_to_confirmed(event_name):
 
     if success_count > 0:
         event.db_set("welcome_email_sent", 1)
-        frappe.msgprint(f"✅ Welcome email sent to {success_count} confirmed delegates!")
+        frappe.msgprint(f"✅ Welcome email with {len(custom_attachments)} attachments sent to {success_count} delegates!")
 
 def _get_event_welcome_template():
     """Helper to find the Event Welcome template"""

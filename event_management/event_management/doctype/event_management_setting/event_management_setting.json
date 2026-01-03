@@ -7,9 +7,10 @@
  "field_order": [
   "admin_email",
   "facilitator_name",
+  "company_signature",
   "column_break_sdnt",
   "calendar_link",
-  "event_logo"
+  "company_logo"
  ],
  "fields": [
   {
@@ -32,16 +33,21 @@
    "label": "Calendar Link"
   },
   {
-   "fieldname": "event_logo",
+   "fieldname": "company_logo",
    "fieldtype": "Attach",
-   "label": "Event Logo"
+   "label": "Comapny Logo"
+  },
+  {
+   "fieldname": "company_signature",
+   "fieldtype": "Attach Image",
+   "label": "Company Signature"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-01 19:49:23.174298",
+ "modified": "2026-01-02 19:54:18.720374",
  "modified_by": "Administrator",
  "module": "Event Management",
  "name": "Event Management Setting",
