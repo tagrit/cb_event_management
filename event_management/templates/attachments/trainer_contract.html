@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #20639B;
+        }
+        .logo {
+            max-width: 200px;
+            margin-bottom: 15px;
+        }
+        .contract-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #20639B;
+            margin: 15px 0;
+        }
+        .contract-number {
+            font-size: 10pt;
+            color: #666;
+        }
+        .section {
+            margin: 25px 0;
+        }
+        .section-title {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #20639B;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .details-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        .details-table td:first-child {
+            font-weight: bold;
+            background-color: #f5f5f5;
+            width: 35%;
+        }
+        .terms-list {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+        .terms-list li {
+            margin-bottom: 10px;
+        }
+        .signature-section {
+            margin-top: 50px;
+            page-break-inside: avoid;
+        }
+        .signature-block {
+            display: inline-block;
+            width: 45%;
+            margin-top: 30px;
+        }
+        .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 50px;
+            padding-top: 5px;
+        }
+        .signature-img {
+            max-width: 150px;
+            margin-bottom: -10px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #20639B;
+            font-size: 9pt;
+            color: #666;
+            text-align: center;
+        }
+        .highlight-box {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-left: 4px solid #20639B;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if logo_base64 %}
+        <img src="data:image/png;base64,{{ logo_base64 }}" class="logo" alt="Company Logo">
+        {% endif %}
+        <div class="contract-title">TRAINING SERVICE AGREEMENT</div>
+        <div class="contract-number">Contract No: {{ trainer_assignment.name }}</div>
+        <div class="contract-number">Date: {{ contract_date }}</div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">1. PARTIES TO THE AGREEMENT</div>
+        <p>This Training Service Agreement ("Agreement") is entered into on {{ contract_date }} between:</p>
+        
+        <table class="details-table">
+            <tr>
+                <td>Service Provider (Trainer)</td>
+                <td>{{ trainer.supplier_name }}</td>
+            </tr>
+            <tr>
+                <td>Contact Email</td>
+                <td>{{ trainer.email_id or trainer.supplier_email }}</td>
+            </tr>
+            <tr>
+                <td>Service Recipient</td>
+                <td>{{ frappe.defaults.get_global_default("company") or "Training Organization" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">2. TRAINING EVENT DETAILS</div>
+        <table class="details-table">
+            <tr>
+                <td>Event Name</td>
+                <td>{{ event.event_name }}</td>
+            </tr>
+            <tr>
+                <td>Event Dates</td>
+                <td>{{ event_date }}</td>
+            </tr>
+            <tr>
+                <td>Venue</td>
+                <td>{{ location }}</td>
+            </tr>
+            <tr>
+                <td>Organization</td>
+                <td>{{ event.organization_name }}</td>
+            </tr>
+            <tr>
+                <td>Number of Delegates</td>
+                <td>{{ event.number_of_delegates }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">3. SCOPE OF SERVICES</div>
+        <p>The Trainer agrees to provide professional training services as outlined below:</p>
+        <ul class="terms-list">
+            <li>Deliver training sessions in the area of: <strong>{{ trainer.area_of_expertise }}</strong></li>
+            <li>Prepare and provide training materials as required</li>
+            <li>Conduct interactive and engaging training sessions</li>
+            <li>Provide assessments and feedback to participants as needed</li>
+            <li>Submit attendance records and evaluation reports upon completion</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">4. COMPENSATION & PAYMENT TERMS</div>
+        <div class="highlight-box">
+            <table class="details-table" style="background: white;">
+                <tr>
+                    <td>Payment Type</td>
+                    <td>{{ trainer_assignment.rate_type }}</td>
+                </tr>
+                <tr>
+                    <td>Rate</td>
+                    <td>{{ frappe.format_value(trainer_assignment.agreed_rate, 'Currency') }}</td>
+                </tr>
+                {% if trainer_assignment.number_of_hours %}
+                <tr>
+                    <td>Number of Hours</td>
+                    <td>{{ trainer_assignment.number_of_hours }}</td>
+                </tr>
+                {% endif %}
+                {% if trainer_assignment.number_of_days %}
+                <tr>
+                    <td>Number of Days</td>
+                    <td>{{ trainer_assignment.number_of_days }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><strong>TOTAL AMOUNT</strong></td>
+                    <td><strong>{{ frappe.format_value(total_amount, 'Currency') }}</strong></td>
+                </tr>
+            </table>
+        </div>
+        
+        <p><strong>Payment Schedule:</strong></p>
+        <ul class="terms-list">
+            <li>Payment will be processed within 30 days of receipt of a valid invoice</li>
+            <li>Invoice must be submitted within 7 days after completion of training</li>
+            <li>Payment will be made via bank transfer to the account specified in the invoice</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">5. TRAINER OBLIGATIONS</div>
+        <ul class="terms-list">
+            <li>Arrive at the venue at least 30 minutes before the scheduled start time</li>
+            <li>Maintain professional conduct and appearance throughout the training</li>
+            <li>Ensure training materials are current and relevant</li>
+            <li>Respect confidentiality of all participant and organizational information</li>
+            <li>Provide certificates of completion if applicable</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">6. CANCELLATION POLICY</div>
+        <ul class="terms-list">
+            <li>Cancellation by the Service Recipient more than 14 days before: No penalty</li>
+            <li>Cancellation 7-14 days before: 50% of agreed fee payable</li>
+            <li>Cancellation less than 7 days before: Full fee payable</li>
+            <li>Trainer cancellation requires 14 days notice; failure may result in non-payment</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">7. GENERAL TERMS</div>
+        <ul class="terms-list">
+            <li>This agreement is valid only for the specified training event</li>
+            <li>Any modifications must be agreed upon in writing by both parties</li>
+            <li>This agreement shall be governed by applicable laws</li>
+            <li>Both parties agree to resolve disputes through good faith negotiation</li>
+        </ul>
+    </div>
+
+    <div class="signature-section">
+        <div class="section-title">8. SIGNATURES</div>
+        <p>By signing below, both parties agree to the terms and conditions outlined in this agreement.</p>
+        
+        <div style="margin-top: 40px;">
+            <div class="signature-block">
+                {% if signature_base64 %}
+                <img src="data:image/png;base64,{{ signature_base64 }}" class="signature-img">
+                {% endif %}
+                <div class="signature-line">
+                    <strong>For the Organization</strong><br>
+                    Name: _________________________<br>
+                    Title: _________________________<br>
+                    Date: {{ contract_date }}
+                </div>
+            </div>
+            
+            <div class="signature-block" style="float: right;">
+                <div class="signature-line">
+                    <strong>Trainer</strong><br>
+                    Name: {{ trainer.supplier_name }}<br>
+                    Signature: _____________________<br>
+                    Date: _________________________
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>This is a computer-generated document. Please sign and return a copy for our records.</p>
+        <p>{{ frappe.defaults.get_global_default("company") or "Training Organization" }} | 
+           Event Management System</p>
+    </div>
+</body>
+</html>

@@ -7,5 +7,7 @@
  event_management.patches.create_registration_confirmation_email_template
  event_management.patches.create_welcome_email_template
  event_management.patches.create_default_settings
+ event_management.patches.add_trainer_management_fields
+ event_management.patches.add_event_trainer_linking_fields
 
 

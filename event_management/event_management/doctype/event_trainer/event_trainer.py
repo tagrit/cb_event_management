@@ -1,0 +1,560 @@
+import frappe
+from frappe.model.document import Document
+from frappe.utils import getdate, formatdate, get_url, now, flt
+from frappe.utils.pdf import get_pdf
+import base64
+import os
+
+class EventTrainer(Document):
+    def validate(self):
+        """Validation before saving"""
+        if not self.trainer:
+            frappe.throw("Please select a trainer")
+        
+        if self.training_start_date and self.training_end_date:
+            if getdate(self.training_end_date) < getdate(self.training_start_date):
+                frappe.throw("Training end date cannot be before start date")
+        
+        self.calculate_total_amount()
+        
+    def calculate_total_amount(self):
+        """Calculate total payment based on rate type and duration"""
+        if not self.trainer or not self.rate_type:
+            return
+            
+        trainer = frappe.get_doc("Supplier", self.trainer)
+        
+        if self.rate_type == "Fixed Rate":
+            self.total_amount = flt(self.agreed_rate or trainer.trainer_rate)
+            
+        elif self.rate_type == "Hourly Rate":
+            hours = flt(self.number_of_hours or 8)
+            self.total_amount = flt(self.agreed_rate or trainer.trainer_rate) * hours
+            
+        elif self.rate_type == "Daily Rate":
+            days = flt(self.number_of_days or 1)
+            self.total_amount = flt(self.agreed_rate or trainer.trainer_rate) * days
+    
+    def on_update(self):
+        """After save actions"""
+        self.update_payment_status()
+    
+    def update_payment_status(self):
+        """Check if trainer has been paid - UPDATED TO FIX LINKING"""
+        if not self.name:
+            return
+        
+        # Get paid amount from Payment Entries that reference this Event Trainer
+        paid_from_payments = frappe.db.sql("""
+            SELECT COALESCE(SUM(pe.paid_amount), 0)
+            FROM `tabPayment Entry` pe
+            WHERE pe.docstatus = 1
+            AND pe.party_type = 'Supplier'
+            AND pe.party = %s
+            AND pe.event_trainer = %s
+        """, (self.trainer, self.name))[0][0] or 0
+        
+        # Also check for allocated amount in Payment Entry References linked to invoices
+        paid_from_invoice_allocations = frappe.db.sql("""
+            SELECT COALESCE(SUM(per.allocated_amount), 0)
+            FROM `tabPayment Entry Reference` per
+            INNER JOIN `tabPayment Entry` pe ON per.parent = pe.name
+            INNER JOIN `tabPurchase Invoice` pi ON per.reference_name = pi.name
+            WHERE pe.docstatus = 1
+            AND pe.party_type = 'Supplier'
+            AND pe.party = %s
+            AND pi.event_trainer = %s
+        """, (self.trainer, self.name))[0][0] or 0
+        
+        # Use the higher of the two amounts (to avoid double counting)
+        paid_amount = max(paid_from_payments, paid_from_invoice_allocations)
+        
+        self.db_set('paid_amount', paid_amount, update_modified=False)
+        
+        if paid_amount == 0:
+            status = "Unpaid"
+        elif paid_amount >= self.total_amount:
+            status = "Paid"
+        else:
+            status = "Partially Paid"
+            
+        self.db_set('payment_status', status, update_modified=False)
+
+
+@frappe.whitelist()
+def send_trainer_contract(event_trainer_name):
+    """Send contract to trainer via email"""
+    if not event_trainer_name:
+        frappe.throw("Event Trainer record not found")
+    
+    try:
+        trainer_doc = frappe.get_doc("Event Trainer", event_trainer_name)
+        event = frappe.get_doc("Event Registration", trainer_doc.event_registration)
+        trainer = frappe.get_doc("Supplier", trainer_doc.trainer)
+        
+        trainer_email = trainer_doc.email
+        if not trainer_email:
+            frappe.throw(f"No email address found for trainer {trainer_doc.trainer_name}. Please update the Event Trainer record.")
+        
+        template_args = {
+            "trainer": trainer,
+            "event": event,
+            "trainer_assignment": trainer_doc,
+            "event_date": f"{formatdate(event.start_date, 'dd MMM yyyy')} to {formatdate(event.end_date, 'dd MMM yyyy')}",
+            "location": f"{event.event_venue}, {event.event_location}",
+            "contract_date": formatdate(now(), 'dd MMM yyyy'),
+            "total_amount": trainer_doc.total_amount,
+            "rate_details": f"{trainer_doc.rate_type}: {frappe.format_value(trainer_doc.agreed_rate, 'Currency')}"
+        }
+        
+        contract_pdf = _generate_trainer_contract_pdf(template_args)
+        
+        sender_email = None
+        try:
+            settings = frappe.get_doc("Event Management Setting")
+            sender_email = settings.sender_email if hasattr(settings, 'sender_email') else None
+        except:
+            pass
+        
+        email_args = {
+            "recipients": [trainer_email],
+            "subject": f"Training Contract - {event.event_name}",
+            "message": _get_contract_email_body(template_args),
+            "attachments": [{
+                "fname": f"Contract_{trainer_doc.trainer_name.replace(' ', '_')}_{event_trainer_name}.pdf",
+                "fcontent": contract_pdf
+            }],
+            "now": True
+        }
+        
+        if sender_email:
+            email_args["sender"] = sender_email
+        
+        frappe.sendmail(**email_args)
+        
+        trainer_doc.db_set('contract_sent', 1, update_modified=True)
+        trainer_doc.db_set('contract_sent_date', now(), update_modified=True)
+        
+        frappe.msgprint(f"✅ Contract sent successfully to {trainer.supplier_name} ({trainer_email})")
+        
+        return {
+            "success": True,
+            "message": f"Contract sent to {trainer_email}",
+            "trainer_name": trainer.supplier_name,
+            "email": trainer_email
+        }
+        
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Trainer Contract Send Failed")
+        frappe.throw(f"Failed to send contract: {str(e)}")
+
+
+def _generate_trainer_contract_pdf(template_args):
+    """Generate PDF contract for trainer"""
+    try:
+        settings = frappe.get_doc("Event Management Setting")
+        
+        def get_full_path(file_url):
+            if not file_url:
+                return None
+            clean_url = file_url.lstrip("/")
+            if clean_url.startswith("private/"):
+                return frappe.get_site_path(clean_url)
+            return frappe.get_site_path("public", clean_url)
+        
+        logo_path = get_full_path(settings.company_logo) if hasattr(settings, 'company_logo') else None
+        logo_base64 = ""
+        if logo_path and os.path.exists(logo_path):
+            with open(logo_path, 'rb') as f:
+                logo_base64 = base64.b64encode(f.read()).decode('utf-8')
+        
+        signature_path = get_full_path(settings.company_signature) if hasattr(settings, 'company_signature') else None
+        signature_base64 = ""
+        if signature_path and os.path.exists(signature_path):
+            with open(signature_path, 'rb') as f:
+                signature_base64 = base64.b64encode(f.read()).decode('utf-8')
+        
+        template_args.update({
+            "logo_base64": logo_base64,
+            "signature_base64": signature_base64,
+            "is_pdf": True
+        })
+        
+        html = frappe.render_template(
+            "event_management/templates/attachments/trainer_contract.html",
+            template_args
+        )
+        
+        return get_pdf(html)
+        
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "PDF Generation Failed")
+        simple_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 40px;">
+            <h1>Training Contract</h1>
+            <p><strong>Trainer:</strong> {template_args['trainer'].supplier_name}</p>
+            <p><strong>Event:</strong> {template_args['event'].event_name}</p>
+            <p><strong>Date:</strong> {template_args['event_date']}</p>
+            <p><strong>Location:</strong> {template_args['location']}</p>
+            <p><strong>Rate:</strong> {template_args['rate_details']}</p>
+            <p><strong>Total Amount:</strong> {frappe.format_value(template_args['total_amount'], 'Currency')}</p>
+        </body>
+        </html>
+        """
+        return get_pdf(simple_html)
+
+
+def _get_contract_email_body(template_args):
+    """Generate email body for contract"""
+    return f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #20639B;">Training Contract</h2>
+        
+        <p>Dear {template_args['trainer'].supplier_name},</p>
+        
+        <p>Please find attached your training contract for the following event:</p>
+        
+        <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Event:</strong> {template_args['event'].event_name}</p>
+            <p style="margin: 5px 0;"><strong>Date:</strong> {template_args['event_date']}</p>
+            <p style="margin: 5px 0;"><strong>Location:</strong> {template_args['location']}</p>
+            <p style="margin: 5px 0;"><strong>Payment:</strong> {template_args['rate_details']}</p>
+            <p style="margin: 5px 0;"><strong>Total Amount:</strong> {frappe.format_value(template_args['total_amount'], 'Currency')}</p>
+        </div>
+        
+        <p>Please review the contract and sign it. You can send the signed copy along with your invoice to our accounts department.</p>
+        
+        <p>If you have any questions, please don't hesitate to contact us.</p>
+        
+        <p>Best regards,<br>Event Management Team</p>
+    </div>
+    """
+
+
+@frappe.whitelist()
+def get_trainer_payment_summary(event_trainer_name):
+    """Get payment summary for a specific trainer assignment - UPDATED TO FIX LINKING"""
+    trainer_doc = frappe.get_doc("Event Trainer", event_trainer_name)
+    
+    # Get payments linked to this specific Event Trainer
+    payments = frappe.get_all(
+        "Payment Entry",
+        filters={
+            "docstatus": 1,
+            "party_type": "Supplier",
+            "party": trainer_doc.trainer,
+            "event_trainer": event_trainer_name
+        },
+        fields=[
+            "name",
+            "posting_date",
+            "paid_amount",
+            "reference_no",
+            "remarks"
+        ],
+        order_by="posting_date desc"
+    )
+    
+    # Get invoices linked to this specific Event Trainer
+    invoices = frappe.get_all(
+        "Purchase Invoice",
+        filters={
+            "docstatus": 1,
+            "supplier": trainer_doc.trainer,
+            "event_trainer": event_trainer_name
+        },
+        fields=[
+            "name",
+            "posting_date",
+            "grand_total",
+            "outstanding_amount",
+            "status"
+        ],
+        order_by="posting_date desc"
+    )
+    
+    # Get allocated amounts from payment references
+    allocated_from_invoices = frappe.db.sql("""
+        SELECT COALESCE(SUM(per.allocated_amount), 0)
+        FROM `tabPayment Entry Reference` per
+        INNER JOIN `tabPayment Entry` pe ON per.parent = pe.name
+        INNER JOIN `tabPurchase Invoice` pi ON per.reference_name = pi.name
+        WHERE pe.docstatus = 1
+        AND pe.party_type = 'Supplier'
+        AND pe.party = %s
+        AND pi.event_trainer = %s
+    """, (trainer_doc.trainer, event_trainer_name))[0][0] or 0
+    
+    total_paid = sum([p.paid_amount for p in payments]) + allocated_from_invoices
+    total_invoiced = sum([i.grand_total for i in invoices])
+    total_outstanding = sum([i.outstanding_amount for i in invoices])
+    
+    return {
+        "trainer_name": trainer_doc.trainer_name,
+        "event_name": trainer_doc.event_name,
+        "total_amount": trainer_doc.total_amount,
+        "total_paid": total_paid,
+        "total_invoiced": total_invoiced,
+        "total_outstanding": total_outstanding,
+        "balance": trainer_doc.total_amount - total_paid,
+        "payment_status": trainer_doc.payment_status,
+        "payments": payments,
+        "invoices": invoices
+    }
+
+
+@frappe.whitelist()
+def get_available_trainers(area_of_expertise=None):
+    """Get list of available trainers (suppliers marked as trainers)"""
+    filters = {"is_trainer": 1}
+    
+    if area_of_expertise:
+        filters["area_of_expertise"] = ["like", f"%{area_of_expertise}%"]
+    
+    trainers = frappe.get_all(
+        "Supplier",
+        filters=filters,
+        fields=[
+            "name",
+            "supplier_name",
+            "area_of_expertise",
+            "trainer_rate_type",
+            "trainer_rate",
+            "email_id"
+        ]
+    )
+    
+    return trainers
+
+
+@frappe.whitelist()
+def create_trainer_payment_entry(event_trainer_name, amount, reference_no=None, remarks=None, link_to_invoice=None):
+    """Helper to create payment entry for trainer - UPDATED TO FIX LINKING"""
+    trainer_doc = frappe.get_doc("Event Trainer", event_trainer_name)
+    
+    # Get default company
+    company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+    
+    # Get company default currency
+    company_currency = frappe.get_cached_value("Company", company, "default_currency")
+    
+    # Get mode of payment (default to first available or create a default)
+    mode_of_payment = frappe.db.get_value("Mode of Payment", {"enabled": 1}, "name") or "Cash"
+    
+    # Get payment account from mode of payment
+    mode_of_payment_doc = frappe.get_doc("Mode of Payment", mode_of_payment)
+    payment_account = None
+    
+    for account in mode_of_payment_doc.accounts:
+        if account.company == company:
+            payment_account = account.default_account
+            break
+    
+    # Fallback: get default cash account from company
+    if not payment_account:
+        payment_account = frappe.get_cached_value("Company", company, "default_cash_account")
+    
+    if not payment_account:
+        frappe.throw("Please set up a default payment account in Mode of Payment or Company settings")
+    
+    # Get supplier's default payable account
+    payable_account = frappe.get_cached_value("Company", company, "default_payable_account")
+    
+    # Create Payment Entry
+    payment = frappe.get_doc({
+        "doctype": "Payment Entry",
+        "payment_type": "Pay",
+        "party_type": "Supplier",
+        "party": trainer_doc.trainer,
+        "company": company,
+        "posting_date": now(),
+        "paid_from": payment_account,
+        "paid_to": payable_account,
+        "paid_amount": flt(amount),
+        "received_amount": flt(amount),
+        "source_exchange_rate": 1,
+        "target_exchange_rate": 1,
+        "reference_no": reference_no or trainer_doc.name,
+        "reference_date": now(),
+        "remarks": remarks or f"Payment for {trainer_doc.event_name}",
+        "mode_of_payment": mode_of_payment,
+        "event_registration": trainer_doc.event_registration,
+        "event_trainer": event_trainer_name  # ADDED: Link to Event Trainer
+    })
+    
+    # ADDED: If there's an outstanding invoice, link it
+    if link_to_invoice:
+        invoice = frappe.get_doc("Purchase Invoice", link_to_invoice)
+        payment.append("references", {
+            "reference_doctype": "Purchase Invoice",
+            "reference_name": link_to_invoice,
+            "total_amount": invoice.grand_total,
+            "outstanding_amount": invoice.outstanding_amount,
+            "allocated_amount": min(flt(amount), invoice.outstanding_amount)
+        })
+    
+    payment.insert()
+    
+    # ADDED: Update Event Trainer payment status
+    trainer_doc.update_payment_status()
+    
+    return payment.name
+
+
+@frappe.whitelist()
+def make_payment_entry_from_invoice(purchase_invoice_name):
+    """Create payment entry from purchase invoice with proper linking - NEW FUNCTION"""
+    from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+    
+    # Use ERPNext's built-in function to create payment entry from invoice
+    payment_entry = get_payment_entry("Purchase Invoice", purchase_invoice_name)
+    
+    # Get the invoice to extract event_trainer reference
+    invoice = frappe.get_doc("Purchase Invoice", purchase_invoice_name)
+    if hasattr(invoice, 'event_trainer') and invoice.event_trainer:
+        payment_entry.event_trainer = invoice.event_trainer
+    
+    return payment_entry
+
+
+def get_trainer_query():
+    """Filter to show only suppliers marked as trainers"""
+    return {
+        "filters": {
+            "is_trainer": 1
+        }
+    }
+
+
+@frappe.whitelist()
+def make_purchase_invoice(source_name, target_doc=None):
+    """Create Purchase Invoice from Event Trainer - UPDATED TO FIX LINKING"""
+    from frappe.model.mapper import get_mapped_doc
+    
+    def set_missing_values(source, target):
+        target.event_registration = source.event_registration
+        target.event_trainer = source.name  # ADDED: Link back to Event Trainer
+        
+        # Ensure Training Service item exists
+        item_code = "Training Service"
+        ensure_training_service_item_exists(item_code)
+        
+        target.append("items", {
+            "item_code": item_code,
+            "item_name": item_code,
+            "description": f"Training services for {source.event_name}",
+            "qty": 1,
+            "rate": source.total_amount,
+            "amount": source.total_amount,
+            "uom": "Nos"
+        })
+    
+    doclist = get_mapped_doc(
+        "Event Trainer",
+        source_name,
+        {
+            "Event Trainer": {
+                "doctype": "Purchase Invoice",
+                "field_map": {
+                    "trainer": "supplier",
+                    "trainer_name": "supplier_name"
+                }
+            }
+        },
+        target_doc,
+        set_missing_values
+    )
+    
+    return doclist
+
+
+def ensure_training_service_item_exists(item_code):
+    """Ensure Training Service item exists, create if it doesn't"""
+    if frappe.db.exists("Item", item_code):
+        return
+    
+    try:
+        # Get a valid item group (use existing one or default)
+        item_group = None
+        
+        # Try to use "Services" item group
+        if frappe.db.exists("Item Group", "Services"):
+            item_group = "Services"
+        elif frappe.db.exists("Item Group", "Service"):
+            item_group = "Service"
+        else:
+            # Get any item group as fallback
+            item_group = frappe.db.get_value("Item Group", {"is_group": 0}, "name")
+        
+        if not item_group:
+            frappe.throw("No valid Item Group found. Please create an Item Group first.")
+        
+        # Create the item
+        item = frappe.get_doc({
+            "doctype": "Item",
+            "item_code": item_code,
+            "item_name": item_code,
+            "item_group": item_group,
+            "stock_uom": "Nos",
+            "is_stock_item": 0,
+            "is_purchase_item": 1,
+            "is_sales_item": 0,
+            "description": "Training service for event management",
+            "maintain_stock": 0
+        })
+        
+        item.insert(ignore_permissions=True)
+        frappe.db.commit()
+        
+        frappe.msgprint(f"Item '{item_code}' created automatically", 
+                       alert=True, indicator="green")
+        
+    except Exception as e:
+        frappe.log_error(f"Error creating Training Service item: {str(e)}", "Training Service Item Creation")
+        frappe.throw(f"Could not create '{item_code}' item. Error: {str(e)}")
+
+
+# NEW FUNCTIONS FOR HOOKS - Add these to handle automatic payment status updates
+def update_trainer_payment_on_payment_submit(doc, method):
+    """Update Event Trainer payment status when payment is submitted"""
+    if doc.party_type == "Supplier" and hasattr(doc, 'event_trainer') and doc.event_trainer:
+        try:
+            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
+            trainer_doc.update_payment_status()
+            frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Error updating trainer payment status: {str(e)}", "Payment Status Update")
+
+
+def update_trainer_payment_on_payment_cancel(doc, method):
+    """Update Event Trainer payment status when payment is cancelled"""
+    if doc.party_type == "Supplier" and hasattr(doc, 'event_trainer') and doc.event_trainer:
+        try:
+            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
+            trainer_doc.update_payment_status()
+            frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Error updating trainer payment status: {str(e)}", "Payment Status Update")
+
+
+def update_trainer_payment_on_invoice_submit(doc, method):
+    """Update Event Trainer when invoice is submitted"""
+    if hasattr(doc, 'event_trainer') and doc.event_trainer:
+        try:
+            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
+            trainer_doc.update_payment_status()
+            frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Error updating trainer on invoice submit: {str(e)}", "Invoice Submit Hook")
+
+
+def update_trainer_payment_on_invoice_cancel(doc, method):
+    """Update Event Trainer when invoice is cancelled"""
+    if hasattr(doc, 'event_trainer') and doc.event_trainer:
+        try:
+            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
+            trainer_doc.update_payment_status()
+            frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Error updating trainer on invoice cancel: {str(e)}", "Invoice Cancel Hook")

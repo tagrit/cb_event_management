@@ -1,0 +1,296 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:TRN-{event_registration}-{#####}",
+ "creation": "2025-01-22 10:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "event_details_section",
+  "event_registration",
+  "event_name",
+  "event_start_date",
+  "event_end_date",
+  "column_break_1",
+  "event_venue",
+  "event_location",
+  "trainer_section",
+  "trainer",
+  "trainer_name",
+  "area_of_expertise",
+  "column_break_2",
+  "email",
+  "mobile_no",
+  "contract_section",
+  "rate_type",
+  "agreed_rate",
+  "column_break_3",
+  "number_of_hours",
+  "number_of_days",
+  "training_details_section",
+  "training_start_date",
+  "training_end_date",
+  "column_break_4",
+  "total_amount",
+  "paid_amount",
+  "contract_status_section",
+  "contract_sent",
+  "contract_sent_date",
+  "column_break_5",
+  "payment_status",
+  "additional_info_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_details_section",
+   "fieldtype": "Section Break",
+   "label": "Event Details"
+  },
+  {
+   "fieldname": "event_registration",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Event Registration",
+   "options": "Event Registration",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "event_registration.event_name",
+   "fieldname": "event_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Event Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "event_registration.start_date",
+   "fieldname": "event_start_date",
+   "fieldtype": "Date",
+   "label": "Event Start Date",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "event_registration.end_date",
+   "fieldname": "event_end_date",
+   "fieldtype": "Date",
+   "label": "Event End Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "event_registration.event_venue",
+   "fieldname": "event_venue",
+   "fieldtype": "Data",
+   "label": "Event Venue",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "event_registration.event_location",
+   "fieldname": "event_location",
+   "fieldtype": "Data",
+   "label": "Event Location",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trainer_section",
+   "fieldtype": "Section Break",
+   "label": "Trainer Information"
+  },
+  {
+   "fieldname": "trainer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trainer",
+   "options": "Supplier",
+   "reqd": 1,
+   "get_query": "event_management.event_management.doctype.event_trainer.event_trainer.get_trainer_query"
+  },
+  {
+   "fetch_from": "trainer.supplier_name",
+   "fieldname": "trainer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trainer Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "trainer.area_of_expertise",
+   "fieldname": "area_of_expertise",
+   "fieldtype": "Small Text",
+   "label": "Area of Expertise",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email",
+   "reqd": 1,
+   "description": "Trainer's email address (required for sending contracts)"
+  },
+  {
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "label": "Mobile No",
+   "reqd": 1,
+   "description": "Trainer's mobile/phone number"
+  },
+  {
+   "fieldname": "contract_section",
+   "fieldtype": "Section Break",
+   "label": "Contract & Payment Terms"
+  },
+  {
+   "default": "Fixed Rate",
+   "fieldname": "rate_type",
+   "fieldtype": "Select",
+   "label": "Rate Type",
+   "options": "Fixed Rate\nHourly Rate\nDaily Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "agreed_rate",
+   "fieldtype": "Currency",
+   "label": "Agreed Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.rate_type=='Hourly Rate'",
+   "fieldname": "number_of_hours",
+   "fieldtype": "Float",
+   "label": "Number of Hours"
+  },
+  {
+   "depends_on": "eval:doc.rate_type=='Daily Rate'",
+   "fieldname": "number_of_days",
+   "fieldtype": "Float",
+   "label": "Number of Days"
+  },
+  {
+   "fieldname": "training_details_section",
+   "fieldtype": "Section Break",
+   "label": "Training Schedule"
+  },
+  {
+   "fieldname": "training_start_date",
+   "fieldtype": "Date",
+   "label": "Training Start Date"
+  },
+  {
+   "fieldname": "training_end_date",
+   "fieldtype": "Date",
+   "label": "Training End Date"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contract_status_section",
+   "fieldtype": "Section Break",
+   "label": "Contract Status"
+  },
+  {
+   "default": "0",
+   "fieldname": "contract_sent",
+   "fieldtype": "Check",
+   "label": "Contract Sent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contract_sent_date",
+   "fieldtype": "Datetime",
+   "label": "Contract Sent Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Unpaid",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Payment Status",
+   "options": "Unpaid\nPartially Paid\nPaid",
+   "read_only": 1
+  },
+  {
+   "fieldname": "additional_info_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-01-22 10:00:00",
+ "modified_by": "Administrator",
+ "module": "Event Management",
+ "name": "Event Trainer",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Event Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
