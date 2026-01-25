@@ -495,21 +495,29 @@ def resend_invitation(event_name, delegate_email):
 @frappe.whitelist()
 def send_confirmation_list_email(recipient=None):
     """
-    Sends a detailed report of all active events and delegate statuses.
+    Sends a detailed report of all upcoming events showing confirmation status.
+    Shows all events regardless of confirmation percentage.
     If no recipient is provided, it defaults to the Admin Email in settings.
     """
+    today = getdate(nowdate())
+    
+    # Get ALL upcoming submitted events, regardless of confirmation status
     events = frappe.get_all(
         "Event Registration",
-        filters={"docstatus": 1},
-        fields=["name", "event_name", "organization_name", "start_date", "end_date", "all_confirmed"]
+        filters={
+            "docstatus": 1,
+            "start_date": [">=", today]  # Only upcoming events
+        },
+        fields=["name", "event_name", "organization_name", "start_date", "end_date", "all_confirmed"],
+        order_by="start_date asc"  # Sort by date, earliest first
     )
 
     if not events:
-        frappe.msgprint("No active events found for reporting.")
+        frappe.msgprint("No upcoming events found for reporting.")
         return
 
     # Generate the professional HTML body
-    html_report = _generate_event_report_html(events)
+    html_report = _generate_event_report_html(events, report_type="upcoming_all")
 
     # Determine recipient
     if not recipient:
@@ -518,7 +526,7 @@ def send_confirmation_list_email(recipient=None):
     try:
         frappe.sendmail(
             recipients=[recipient],
-            subject=f"Event Confirmation Status Report - {formatdate(nowdate())}",
+            subject=f"Upcoming Events Confirmation Status - {formatdate(nowdate())}",
             message=html_report,
             now=True
         )
@@ -526,39 +534,69 @@ def send_confirmation_list_email(recipient=None):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Event Report Failed")
         frappe.msgprint("Failed to send report. Check Error Logs.")
-        
 
-def _generate_event_report_html(events):
+
+def _generate_event_report_html(events, report_type="all"):
     """Helper to build the HTML table structure for reports"""
+    
+    # Simplified title logic - only two types needed
+    if report_type == "upcoming_all":
+        title = "Upcoming Events - Confirmation Status Report"
+        subtitle = f"Showing all {len(events)} upcoming events with delegate confirmation details"
+    else:
+        title = "Event Confirmation Status Report"
+        subtitle = f"Total Events: {len(events)}"
+    
     html = f"""<div style="font-family: Arial, sans-serif; color: #333;">
-                <h2>Event Confirmation Status Report</h2>
-                <p>Generated on: {formatdate(nowdate())}</p><hr>"""
+                <h2>{title}</h2>
+                <p>Generated on: {formatdate(nowdate())}</p>
+                <p style="color: #666;">{subtitle}</p>
+                <hr>"""
 
     for event_summary in events:
         event = frappe.get_doc("Event Registration", event_summary.name)
         total = len(event.delegates)
         confirmed = sum(1 for d in event.delegates if d.confirmed)
+        pending = total - confirmed
         percentage = round((confirmed / total * 100) if total > 0 else 0, 1)
         status_color = "#20639B" if event.all_confirmed else "#ff9800"
+        
+        # Calculate days until event
+        days_until = (getdate(event.start_date) - getdate(nowdate())).days
+        days_text = f"{days_until} days away" if days_until > 0 else "Today" if days_until == 0 else f"{abs(days_until)} days ago"
 
         html += f"""
         <div style="margin: 20px 0; border: 1px solid #eee; padding: 15px; border-radius: 8px;">
-            <h3 style="color: {status_color};">{event.event_name} ({percentage}%)</h3>
-            <p><strong>Organization:</strong> {event.organization_name} | <strong>Date:</strong> {formatdate(event.start_date)}</p>
+            <h3 style="color: {status_color};">{event.event_name}</h3>
+            <p>
+                <strong>Organization:</strong> {event.organization_name} | 
+                <strong>Date:</strong> {formatdate(event.start_date)} to {formatdate(event.end_date)} 
+                <span style="color: #666;">({days_text})</span>
+            </p>
+            <p><strong>Venue:</strong> {event.event_venue}, {event.event_location}</p>
+            <p style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                <strong>Confirmation Status:</strong> 
+                <span style="color: #20639B; font-weight: bold;">{confirmed} Confirmed</span> | 
+                <span style="color: #ff9800; font-weight: bold;">{pending} Pending</span> | 
+                <span style="color: #666; font-weight: bold;">{percentage}% Complete</span>
+            </p>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <tr style="background: #f8f9fa; border-bottom: 2px solid #eee;">
                     <th style="padding: 8px; text-align: left;">Delegate</th>
                     <th style="padding: 8px; text-align: left;">Email</th>
                     <th style="padding: 8px; text-align: center;">Status</th>
+                    <th style="padding: 8px; text-align: center;">Confirmed On</th>
                 </tr>"""
 
         for d in event.delegates:
             status = "✅ Confirmed" if d.confirmed else "⏳ Pending"
             row_bg = "#f0fff4" if d.confirmed else "#fffaf0"
+            conf_date = formatdate(d.confirmation_date) if d.confirmation_date else "N/A"
             html += f"""<tr style="background: {row_bg}; border-bottom: 1px solid #eee;">
                         <td style="padding: 8px;">{d.first_name} {d.last_name}</td>
                         <td style="padding: 8px;">{d.email}</td>
                         <td style="padding: 8px; text-align: center;">{status}</td>
+                        <td style="padding: 8px; text-align: center;">{conf_date}</td>
                     </tr>"""
         html += "</table></div>"
     
@@ -691,34 +729,38 @@ def send_automated_reminders():
 def trigger_automated_wednesday_report():
     """
     Scheduled job for Wednesdays. 
-    Finds events starting in the next 10 days that haven't been reported yet.
+    Finds ALL upcoming events (starting in the next 10 days) showing their confirmation status,
+    regardless of how many delegates have confirmed.
     """
     today = getdate(nowdate())
     reporting_window = add_days(today, 10)
 
-    # Find only submitted events that need a report
+    # Find ALL submitted upcoming events, regardless of confirmation status
     events_to_process = frappe.get_all(
         "Event Registration",
         filters={
             "docstatus": 1,
-            "start_date": ["between", [today, reporting_window]],
+            "start_date": ["between", [today, reporting_window]],  # Next 10 days
             "final_report_sent": 0
         },
-        fields=["name"]
+        fields=["name", "event_name", "organization_name", "start_date", "end_date", "all_confirmed"],
+        order_by="start_date asc"
     )
 
     if not events_to_process:
+        # Optional: Log that no events need reporting
+        frappe.log_error("No upcoming events found for Wednesday report", "Wednesday Report - No Events")
         return
 
     # Use existing professional HTML generator
-    html_report = _generate_event_report_html(events_to_process)
+    html_report = _generate_event_report_html(events_to_process, report_type="upcoming_all")
 
     # Send the mail
     recipient = frappe.db.get_single_value("Event Management Setting", "admin_email") or "info@tagrit.com"
     
     frappe.sendmail(
         recipients=[recipient],
-        subject=f"FINAL Confirmation Status Report - {formatdate(nowdate())}",
+        subject=f"Upcoming Events Status - Weekly Report - {formatdate(nowdate())}",
         message=html_report,
         now=True
     )
@@ -729,6 +771,11 @@ def trigger_automated_wednesday_report():
     
     frappe.db.commit()
     
+    # Log success
+    frappe.log_error(
+        f"Wednesday report sent successfully for {len(events_to_process)} events to {recipient}", 
+        "Wednesday Report Success"
+    )
     
 @frappe.whitelist()
 def get_dashboard_data():
