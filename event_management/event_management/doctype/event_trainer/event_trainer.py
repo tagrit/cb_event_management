@@ -35,26 +35,27 @@ class EventTrainer(Document):
             days = flt(self.number_of_days or 1)
             self.total_amount = flt(self.agreed_rate or trainer.trainer_rate) * days
     
-    def on_update(self):
-        """After save actions"""
-        self.update_payment_status()
     
     def update_payment_status(self):
-        """Check if trainer has been paid - UPDATED TO FIX LINKING"""
+        """Check if trainer has been paid - FIXED DOUBLE COUNTING"""
         if not self.name:
             return
         
-        # Get paid amount from Payment Entries that reference this Event Trainer
-        paid_from_payments = frappe.db.sql("""
+        # Get DIRECT payments (not linked to invoices via Payment Entry Reference)
+        paid_from_direct_payments = frappe.db.sql("""
             SELECT COALESCE(SUM(pe.paid_amount), 0)
             FROM `tabPayment Entry` pe
             WHERE pe.docstatus = 1
             AND pe.party_type = 'Supplier'
             AND pe.party = %s
             AND pe.event_trainer = %s
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabPayment Entry Reference` per
+                WHERE per.parent = pe.name
+            )
         """, (self.trainer, self.name))[0][0] or 0
         
-        # Also check for allocated amount in Payment Entry References linked to invoices
+        # Get payments allocated to invoices for this Event Trainer
         paid_from_invoice_allocations = frappe.db.sql("""
             SELECT COALESCE(SUM(per.allocated_amount), 0)
             FROM `tabPayment Entry Reference` per
@@ -66,8 +67,8 @@ class EventTrainer(Document):
             AND pi.event_trainer = %s
         """, (self.trainer, self.name))[0][0] or 0
         
-        # Use the higher of the two amounts (to avoid double counting)
-        paid_amount = max(paid_from_payments, paid_from_invoice_allocations)
+        # ADD both amounts (they don't overlap because of NOT EXISTS)
+        paid_amount = paid_from_direct_payments + paid_from_invoice_allocations
         
         self.db_set('paid_amount', paid_amount, update_modified=False)
         
@@ -79,7 +80,6 @@ class EventTrainer(Document):
             status = "Partially Paid"
             
         self.db_set('payment_status', status, update_modified=False)
-
 
 @frappe.whitelist()
 def send_trainer_contract(event_trainer_name):
@@ -149,62 +149,198 @@ def send_trainer_contract(event_trainer_name):
         frappe.throw(f"Failed to send contract: {str(e)}")
 
 
+
 def _generate_trainer_contract_pdf(template_args):
-    """Generate PDF contract for trainer"""
+    """Generate PDF contract for trainer - WITH DETAILED ERROR CATCHING"""
+    error_details = []
+    
     try:
-        settings = frappe.get_doc("Event Management Setting")
+        # Ensure the template knows it's rendering for a PDF
+        template_args.update({"is_pdf": True})
+        error_details.append("✓ Set is_pdf flag")
+
+        # 1. Fetch paths from Event Management Setting
+        try:
+            settings = frappe.get_doc("Event Management Setting")
+            error_details.append("✓ Loaded Event Management Setting")
+        except Exception as e:
+            error_details.append(f"✗ Failed to load Event Management Setting: {str(e)}")
+            raise
         
+        # 2. Helper to find the file on the server (handles Public and Private)
         def get_full_path(file_url):
-            if not file_url:
+            if not file_url: 
                 return None
             clean_url = file_url.lstrip("/")
             if clean_url.startswith("private/"):
                 return frappe.get_site_path(clean_url)
             return frappe.get_site_path("public", clean_url)
-        
-        logo_path = get_full_path(settings.company_logo) if hasattr(settings, 'company_logo') else None
-        logo_base64 = ""
-        if logo_path and os.path.exists(logo_path):
-            with open(logo_path, 'rb') as f:
-                logo_base64 = base64.b64encode(f.read()).decode('utf-8')
-        
-        signature_path = get_full_path(settings.company_signature) if hasattr(settings, 'company_signature') else None
-        signature_base64 = ""
-        if signature_path and os.path.exists(signature_path):
-            with open(signature_path, 'rb') as f:
-                signature_base64 = base64.b64encode(f.read()).decode('utf-8')
-        
+
+        # 3. Process Logo (Dynamic Base64)
+        try:
+            logo_path = get_full_path(settings.company_logo) if hasattr(settings, 'company_logo') else None
+            logo_base64 = ""
+            if logo_path and os.path.exists(logo_path):
+                with open(logo_path, 'rb') as f:
+                    logo_base64 = base64.b64encode(f.read()).decode('utf-8')
+                error_details.append(f"✓ Loaded logo from: {logo_path}")
+            else:
+                error_details.append(f"⚠ No logo found at: {logo_path}")
+        except Exception as e:
+            error_details.append(f"✗ Logo processing failed: {str(e)}")
+            logo_base64 = ""
+
+        # 4. Process Signature (Dynamic Base64)
+        try:
+            signature_path = get_full_path(settings.company_signature) if hasattr(settings, 'company_signature') else None
+            signature_base64 = ""
+            if signature_path and os.path.exists(signature_path):
+                with open(signature_path, 'rb') as f:
+                    signature_base64 = base64.b64encode(f.read()).decode('utf-8')
+                error_details.append(f"✓ Loaded signature from: {signature_path}")
+            else:
+                error_details.append(f"⚠ No signature found at: {signature_path}")
+        except Exception as e:
+            error_details.append(f"✗ Signature processing failed: {str(e)}")
+            signature_base64 = ""
+
+        # 5. Add encoded data to template arguments
         template_args.update({
             "logo_base64": logo_base64,
-            "signature_base64": signature_base64,
-            "is_pdf": True
+            "signature_base64": signature_base64
         })
+        error_details.append("✓ Updated template_args with logo and signature")
         
-        html = frappe.render_template(
-            "event_management/templates/attachments/trainer_contract.html",
-            template_args
-        )
+        # 6. Generate Trainer Contract PDF
+        template_path = "event_management/templates/attachments/trainer_contract.html"
+        error_details.append(f"→ Attempting to render template: {template_path}")
         
-        return get_pdf(html)
+        # Check if template exists
+        try:
+            full_template_path = frappe.get_app_path("event_management", "templates", "attachments", "trainer_contract.html")
+            if os.path.exists(full_template_path):
+                error_details.append(f"✓ Template file exists at: {full_template_path}")
+            else:
+                error_details.append(f"✗ Template file NOT FOUND at: {full_template_path}")
+                raise FileNotFoundError(f"Template not found: {full_template_path}")
+        except Exception as e:
+            error_details.append(f"✗ Template path check failed: {str(e)}")
+            raise
+        
+        try:
+            contract_html = frappe.render_template(template_path, template_args)
+            error_details.append("✓ Template rendered successfully")
+        except Exception as e:
+            error_details.append(f"✗ Template rendering failed: {str(e)}")
+            raise
+        
+        try:
+            pdf_content = get_pdf(contract_html)
+            error_details.append("✓ PDF generated successfully")
+            return pdf_content
+        except Exception as e:
+            error_details.append(f"✗ PDF generation failed: {str(e)}")
+            raise
         
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "PDF Generation Failed")
+        # Log detailed error information
+        error_msg = "\n".join(error_details)
+        error_msg += f"\n\n=== FINAL ERROR ===\n{str(e)}\n\n=== FULL TRACEBACK ===\n{frappe.get_traceback()}"
+        
+        frappe.log_error(error_msg, "Trainer Contract PDF Generation Failed - DETAILED")
+        
+        # Also show error details to user
+        frappe.msgprint(
+            f"<b>PDF Generation Error Details:</b><br><br>" + "<br>".join(error_details) + f"<br><br><b>Error:</b> {str(e)}",
+            title="Template Rendering Failed",
+            indicator="red"
+        )
+        
+        # Fallback: Create a detailed error HTML contract
         simple_html = f"""
         <html>
-        <body style="font-family: Arial, sans-serif; padding: 40px;">
-            <h1>Training Contract</h1>
-            <p><strong>Trainer:</strong> {template_args['trainer'].supplier_name}</p>
-            <p><strong>Event:</strong> {template_args['event'].event_name}</p>
-            <p><strong>Date:</strong> {template_args['event_date']}</p>
-            <p><strong>Location:</strong> {template_args['location']}</p>
-            <p><strong>Rate:</strong> {template_args['rate_details']}</p>
-            <p><strong>Total Amount:</strong> {frappe.format_value(template_args['total_amount'], 'Currency')}</p>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 40px;
+                    color: #333;
+                }}
+                h1 {{
+                    color: #1e3a8a;
+                    border-bottom: 3px solid #3b82f6;
+                    padding-bottom: 10px;
+                }}
+                .details {{
+                    background: #f8fafc;
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin: 20px 0;
+                }}
+                .detail-row {{
+                    margin: 10px 0;
+                    padding: 8px 0;
+                    border-bottom: 1px solid #e2e8f0;
+                }}
+                .label {{
+                    font-weight: bold;
+                    color: #1e3a8a;
+                    display: inline-block;
+                    width: 150px;
+                }}
+                .error-box {{
+                    margin-top: 30px;
+                    padding: 15px;
+                    background: #fef2f2;
+                    border-left: 4px solid #dc2626;
+                    font-size: 9pt;
+                }}
+                .error-details {{
+                    font-family: monospace;
+                    background: white;
+                    padding: 10px;
+                    margin-top: 10px;
+                    border-radius: 4px;
+                    overflow-x: auto;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>Training Service Contract</h1>
+            <div class="details">
+                <div class="detail-row">
+                    <span class="label">Trainer:</span> {template_args.get('trainer', {}).supplier_name if hasattr(template_args.get('trainer', {}), 'supplier_name') else 'N/A'}
+                </div>
+                <div class="detail-row">
+                    <span class="label">Event:</span> {template_args.get('event', {}).event_name if hasattr(template_args.get('event', {}), 'event_name') else 'N/A'}
+                </div>
+                <div class="detail-row">
+                    <span class="label">Date:</span> {template_args.get('event_date', 'N/A')}
+                </div>
+                <div class="detail-row">
+                    <span class="label">Location:</span> {template_args.get('location', 'N/A')}
+                </div>
+                <div class="detail-row">
+                    <span class="label">Payment Type:</span> {template_args.get('rate_details', 'N/A')}
+                </div>
+                <div class="detail-row">
+                    <span class="label">Total Amount:</span> <strong>{frappe.format_value(template_args.get('total_amount', 0), 'Currency')}</strong>
+                </div>
+            </div>
+            <div class="error-box">
+                <strong>⚠️ Template Rendering Error</strong>
+                <p>This is a fallback contract. The beautiful template failed to render.</p>
+                <div class="error-details">
+                    {'<br>'.join(error_details)}
+                    <br><br><strong>Error:</strong> {str(e)}
+                </div>
+            </div>
         </body>
         </html>
         """
         return get_pdf(simple_html)
-
-
+     
 def _get_contract_email_body(template_args):
     """Generate email body for contract"""
     return f"""
@@ -234,7 +370,7 @@ def _get_contract_email_body(template_args):
 
 @frappe.whitelist()
 def get_trainer_payment_summary(event_trainer_name):
-    """Get payment summary for a specific trainer assignment - UPDATED TO FIX LINKING"""
+    """Get payment summary for a specific trainer assignment - FIXED DOUBLE COUNTING"""
     trainer_doc = frappe.get_doc("Event Trainer", event_trainer_name)
     
     # Get payments linked to this specific Event Trainer
@@ -274,7 +410,22 @@ def get_trainer_payment_summary(event_trainer_name):
         order_by="posting_date desc"
     )
     
-    # Get allocated amounts from payment references
+    # Calculate total paid correctly - avoid double counting
+    # Get direct payments (not linked to any invoice)
+    direct_payments = frappe.db.sql("""
+        SELECT COALESCE(SUM(pe.paid_amount), 0)
+        FROM `tabPayment Entry` pe
+        WHERE pe.docstatus = 1
+        AND pe.party_type = 'Supplier'
+        AND pe.party = %s
+        AND pe.event_trainer = %s
+        AND NOT EXISTS (
+            SELECT 1 FROM `tabPayment Entry Reference` per
+            WHERE per.parent = pe.name
+        )
+    """, (trainer_doc.trainer, event_trainer_name))[0][0] or 0
+    
+    # Get allocated amounts from payment references linked to invoices
     allocated_from_invoices = frappe.db.sql("""
         SELECT COALESCE(SUM(per.allocated_amount), 0)
         FROM `tabPayment Entry Reference` per
@@ -286,7 +437,9 @@ def get_trainer_payment_summary(event_trainer_name):
         AND pi.event_trainer = %s
     """, (trainer_doc.trainer, event_trainer_name))[0][0] or 0
     
-    total_paid = sum([p.paid_amount for p in payments]) + allocated_from_invoices
+    # ADD both (they don't overlap due to NOT EXISTS)
+    total_paid = direct_payments + allocated_from_invoices
+    
     total_invoiced = sum([i.grand_total for i in invoices])
     total_outstanding = sum([i.outstanding_amount for i in invoices])
     
@@ -327,10 +480,9 @@ def get_available_trainers(area_of_expertise=None):
     
     return trainers
 
-
 @frappe.whitelist()
-def create_trainer_payment_entry(event_trainer_name, amount, reference_no=None, remarks=None, link_to_invoice=None):
-    """Helper to create payment entry for trainer - UPDATED TO FIX LINKING"""
+def create_trainer_payment_entry(event_trainer_name, amount, reference_no=None, remarks=None, link_to_invoice=None, auto_submit=False):
+    """Helper to create payment entry for trainer - IMPROVED WITH AUTO-SUBMIT OPTION"""
     trainer_doc = frappe.get_doc("Event Trainer", event_trainer_name)
     
     # Get default company
@@ -380,10 +532,10 @@ def create_trainer_payment_entry(event_trainer_name, amount, reference_no=None, 
         "remarks": remarks or f"Payment for {trainer_doc.event_name}",
         "mode_of_payment": mode_of_payment,
         "event_registration": trainer_doc.event_registration,
-        "event_trainer": event_trainer_name  # ADDED: Link to Event Trainer
+        "event_trainer": event_trainer_name  # Link to Event Trainer
     })
     
-    # ADDED: If there's an outstanding invoice, link it
+    # If there's an outstanding invoice, link it
     if link_to_invoice:
         invoice = frappe.get_doc("Purchase Invoice", link_to_invoice)
         payment.append("references", {
@@ -396,8 +548,9 @@ def create_trainer_payment_entry(event_trainer_name, amount, reference_no=None, 
     
     payment.insert()
     
-    # ADDED: Update Event Trainer payment status
-    trainer_doc.update_payment_status()
+    # Auto-submit if requested
+    if auto_submit:
+        payment.submit()
     
     return payment.name
 
@@ -520,41 +673,113 @@ def update_trainer_payment_on_payment_submit(doc, method):
     """Update Event Trainer payment status when payment is submitted"""
     if doc.party_type == "Supplier" and hasattr(doc, 'event_trainer') and doc.event_trainer:
         try:
-            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
-            trainer_doc.update_payment_status()
-            frappe.db.commit()
+            # Use after_commit to ensure update happens after transaction completes
+            frappe.enqueue(
+                method='event_management.event_management.doctype.event_trainer.event_trainer._update_trainer_payment_status',
+                queue='short',
+                timeout=300,
+                event_trainer=doc.event_trainer,
+                enqueue_after_commit=True  # Important: run after commit
+            )
         except Exception as e:
-            frappe.log_error(f"Error updating trainer payment status: {str(e)}", "Payment Status Update")
+            frappe.log_error(f"Error enqueuing trainer payment update: {str(e)}", "Payment Status Update")
 
 
 def update_trainer_payment_on_payment_cancel(doc, method):
     """Update Event Trainer payment status when payment is cancelled"""
     if doc.party_type == "Supplier" and hasattr(doc, 'event_trainer') and doc.event_trainer:
         try:
-            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
-            trainer_doc.update_payment_status()
-            frappe.db.commit()
+            frappe.enqueue(
+                method='event_management.event_management.doctype.event_trainer.event_trainer._update_trainer_payment_status',
+                queue='short',
+                timeout=300,
+                event_trainer=doc.event_trainer,
+                enqueue_after_commit=True
+            )
         except Exception as e:
-            frappe.log_error(f"Error updating trainer payment status: {str(e)}", "Payment Status Update")
+            frappe.log_error(f"Error enqueuing trainer payment update: {str(e)}", "Payment Status Update")
 
 
 def update_trainer_payment_on_invoice_submit(doc, method):
     """Update Event Trainer when invoice is submitted"""
     if hasattr(doc, 'event_trainer') and doc.event_trainer:
         try:
-            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
-            trainer_doc.update_payment_status()
-            frappe.db.commit()
+            frappe.enqueue(
+                method='event_management.event_management.doctype.event_trainer.event_trainer._update_trainer_payment_status',
+                queue='short',
+                timeout=300,
+                event_trainer=doc.event_trainer,
+                enqueue_after_commit=True
+            )
         except Exception as e:
-            frappe.log_error(f"Error updating trainer on invoice submit: {str(e)}", "Invoice Submit Hook")
+            frappe.log_error(f"Error enqueuing trainer on invoice submit: {str(e)}", "Invoice Submit Hook")
 
 
 def update_trainer_payment_on_invoice_cancel(doc, method):
     """Update Event Trainer when invoice is cancelled"""
     if hasattr(doc, 'event_trainer') and doc.event_trainer:
         try:
-            trainer_doc = frappe.get_doc("Event Trainer", doc.event_trainer)
-            trainer_doc.update_payment_status()
-            frappe.db.commit()
+            frappe.enqueue(
+                method='event_management.event_management.doctype.event_trainer.event_trainer._update_trainer_payment_status',
+                queue='short',
+                timeout=300,
+                event_trainer=doc.event_trainer,
+                enqueue_after_commit=True
+            )
         except Exception as e:
-            frappe.log_error(f"Error updating trainer on invoice cancel: {str(e)}", "Invoice Cancel Hook")
+            frappe.log_error(f"Error enqueuing trainer on invoice cancel: {str(e)}", "Invoice Cancel Hook")
+
+
+def _update_trainer_payment_status(event_trainer):
+    """Background task to update payment status"""
+    try:
+        # Set user context for background job
+        if frappe.session.user == 'Guest':
+            frappe.set_user("Administrator")
+        
+        trainer_doc = frappe.get_doc("Event Trainer", event_trainer)
+        trainer_doc.update_payment_status()
+        frappe.db.commit()
+        
+    except Exception as e:
+        frappe.log_error(
+            f"Error updating trainer payment status in background: {str(e)}\n{frappe.get_traceback()}", 
+            "Background Payment Status Update"
+        )
+
+@frappe.whitelist()
+def get_trainers_with_fresh_status(event_registration):
+    """Get trainers with freshly calculated payment status"""
+    trainers = frappe.get_all(
+        "Event Trainer",
+        filters={"event_registration": event_registration},
+        fields=["name", "trainer", "trainer_name", "email", "mobile_no", "rate_type", 
+                "total_amount", "contract_sent"]
+    )
+    
+    # Force update payment status for each trainer and get fresh data
+    for trainer in trainers:
+        trainer_doc = frappe.get_doc("Event Trainer", trainer.name)
+        trainer_doc.update_payment_status()
+        
+        # Reload to get the updated values
+        trainer_doc.reload()
+        
+        trainer["paid_amount"] = trainer_doc.paid_amount or 0
+        trainer["payment_status"] = trainer_doc.payment_status
+    
+    return trainers
+
+
+@frappe.whitelist()
+def force_update_payment_status(event_trainer_name):
+    """Force update payment status for a specific trainer"""
+    trainer_doc = frappe.get_doc("Event Trainer", event_trainer_name)
+    trainer_doc.update_payment_status()
+    trainer_doc.reload()
+    
+    return {
+        "paid_amount": trainer_doc.paid_amount or 0,
+        "payment_status": trainer_doc.payment_status,
+        "total_amount": trainer_doc.total_amount
+    }

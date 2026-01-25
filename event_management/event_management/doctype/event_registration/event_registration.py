@@ -7,6 +7,8 @@ import json
 import base64
 from frappe import _  
 import os
+import re
+
 
 class EventRegistration(Document):
     def validate(self):
@@ -68,15 +70,67 @@ class EventRegistration(Document):
         if old_status != new_status:
             frappe.db.set_value("Event Registration", self.name, "all_confirmed", new_status, update_modified=False)
 
-    def generate_event_identifier(self):
-        """Create unique ID from dates, venue and location"""
-        if self.start_date and self.end_date and self.event_venue and self.event_location:
-            start = self.start_date.replace("-", "")
-            end = self.end_date.replace("-", "")
-            venue_code = self.event_venue[:3].upper()
-            location_code = self.event_location[:3].upper()
-            self.event_identifier = f"{start}-{end}-{location_code}-{venue_code}"
 
+    def autoname(self):
+            """
+            This method runs BEFORE the document is created.
+            Whatever you set as self.name here becomes the Unique ID.
+            """
+            # 1. Clean strings (3 letters max)
+            def get_code(text):
+                if not text: return "NA"
+                return re.sub(r'[^a-zA-Z0-9]', '', text)[:3].upper()
+
+            org = get_code(self.organization_name)
+            loc = get_code(self.event_location)
+            
+            # Format date as YYMMDD
+            dt = getdate(self.start_date).strftime('%y%m%d') if self.start_date else "000000"
+            
+            base_id = f"{org}-{loc}-{dt}"
+
+            # 2. Check for uniqueness and add a sequence suffix
+            # We search the database for how many records start with this base_id
+            existing_count = frappe.db.count("Event Registration", {
+                "name": ["like", f"{base_id}-%"]
+            })
+            
+            # Sequence 01, 02, etc.
+            suffix = str(existing_count + 1).zfill(2)
+            
+            # SET THE NAME (This is the critical part)
+            self.name = f"{base_id}-{suffix}"
+        
+             
+        
+    def generate_event_identifier(self):
+        """
+        Creates a guaranteed unique ID: ORG-LOC-YYMMDD-SEQ
+        Example: TAG-NAI-260125-01
+        """
+        if all([self.organization_name, self.event_location, self.start_date]):
+            # 1. Clean strings (3 letters max)
+            def get_code(text):
+                return re.sub(r'[^a-zA-Z0-9]', '', text)[:3].upper()
+
+            org = get_code(self.organization_name)
+            loc = get_code(self.event_location)
+            dt = getdate(self.start_date).strftime('%y%m%d')
+            
+            base_id = f"{org}-{loc}-{dt}"
+
+            # 2. Check for uniqueness and add a sequence suffix if needed
+            # Only run this if the identifier isn't set yet or if core fields changed
+            if not self.event_identifier or not self.event_identifier.startswith(base_id):
+                existing_count = frappe.db.count("Event Registration", {
+                    "event_identifier": ["like", f"{base_id}%"],
+                    "name": ["!=", self.name] # Don't count yourself
+                })
+                
+                # Sequence 01, 02, etc.
+                suffix = str(existing_count + 1).zfill(2)
+                self.event_identifier = f"{base_id}-{suffix}"
+                
     def generate_confirmation_token(self, email):
         """Generate unique confirmation token for delegate"""
         token_string = f"{self.name}-{email}-{now()}"

@@ -178,13 +178,11 @@ window.resend_invitation = function(event_name, email) {
 };
 
 function show_trainers_dialog(frm) {
+    // Force reload from database to get fresh data
     frappe.call({
-        method: 'frappe.client.get_list',
+        method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainers_with_fresh_status',
         args: {
-            doctype: 'Event Trainer',
-            filters: { event_registration: frm.doc.name },
-            fields: ['name', 'trainer_name', 'email', 'mobile_no', 'rate_type', 'total_amount', 
-                     'payment_status', 'contract_sent']
+            event_registration: frm.doc.name
         },
         callback: function(r) {
             if (r.message && r.message.length > 0) {
@@ -198,6 +196,7 @@ function show_trainers_dialog(frm) {
 
 function show_trainers_table(frm, trainers) {
     let html = `
+        <div id="trainers-table-container">
         <table class="table table-bordered">
             <thead>
                 <tr>
@@ -206,12 +205,14 @@ function show_trainers_table(frm, trainers) {
                     <th>Phone</th>
                     <th>Rate Type</th>
                     <th>Amount</th>
+                    <th>Paid</th>
+                    <th>Balance</th>
                     <th>Contract</th>
                     <th>Payment</th>
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="trainers-tbody">
     `;
     
     trainers.forEach(trainer => {
@@ -226,39 +227,85 @@ function show_trainers_table(frm, trainers) {
         }[trainer.payment_status] || 'secondary';
         
         const payment_badge = `<span class="badge badge-${payment_color}">${trainer.payment_status}</span>`;
+        const balance = trainer.total_amount - (trainer.paid_amount || 0);
         
         html += `
-            <tr>
+            <tr data-trainer="${trainer.name}">
                 <td><a href="/app/event-trainer/${trainer.name}">${trainer.trainer_name}</a></td>
                 <td>${trainer.email || '-'}</td>
                 <td>${trainer.mobile_no || '-'}</td>
                 <td>${trainer.rate_type}</td>
                 <td>${format_currency(trainer.total_amount)}</td>
+                <td class="text-success">${format_currency(trainer.paid_amount || 0)}</td>
+                <td class="text-danger">${format_currency(balance)}</td>
                 <td>${contract_badge}</td>
                 <td>${payment_badge}</td>
-                <td>
-                    <button class="btn btn-xs btn-primary" 
-                            onclick="send_contract('${trainer.name}')">
-                        Contract
-                    </button>
-                    <button class="btn btn-xs btn-warning" 
-                            onclick="create_invoice('${trainer.name}')">
-                        Invoice
-                    </button>
-                    <button class="btn btn-xs btn-success" 
-                            onclick="make_payment('${trainer.name}')">
-                        Pay
-                    </button>
-                    <button class="btn btn-xs btn-info" 
-                            onclick="view_payments('${trainer.name}')">
-                        History
-                    </button>
+                <td style="text-align: center;">
+                    <div class="dropdown">
+                        <button class="btn btn-default btn-sm" type="button" 
+                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                style="padding: 4px 8px; background: transparent; border: none; font-size: 18px; color: #8d99a6;">
+                            ⋮
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-right" style="min-width: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border-radius: 6px;">
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); frappe.set_route('Form', 'Event Trainer', '${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>View Details</span>
+                                </a>
+                            </li>
+                            <li class="divider" style="margin: 4px 0;"></li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); send_contract('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Send Contract</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); create_invoice('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Create Invoice</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); make_payment('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+                                        <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Record Payment</span>
+                                </a>
+                            </li>
+                            <li class="divider" style="margin: 4px 0;"></li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); view_payments('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Payment History</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </td>
             </tr>
         `;
     });
     
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     
     const dialog = new frappe.ui.Dialog({
         title: __('Event Trainers'),
@@ -279,7 +326,121 @@ function show_trainers_table(frm, trainers) {
         }
     });
     
+    // Store dialog reference globally for refresh
+    window.current_trainers_dialog = dialog;
+    window.current_event_registration = frm.doc.name;
+    
     dialog.show();
+}
+
+// NEW: Function to refresh trainers dialog
+window.refresh_trainers_dialog = function() {
+    if (window.current_trainers_dialog && window.current_event_registration) {
+        frappe.call({
+            method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainers_with_fresh_status',
+            args: {
+                event_registration: window.current_event_registration
+            },
+            callback: function(r) {
+                if (r.message && window.current_trainers_dialog) {
+                    // Update the table content
+                    let html = '';
+                    r.message.forEach(trainer => {
+                        const contract_badge = trainer.contract_sent 
+                            ? '<span class="badge badge-success">Sent</span>' 
+                            : '<span class="badge badge-warning">Pending</span>';
+                        
+                        const payment_color = {
+                            'Paid': 'success',
+                            'Partially Paid': 'warning',
+                            'Unpaid': 'danger'
+                        }[trainer.payment_status] || 'secondary';
+                        
+                        const payment_badge = `<span class="badge badge-${payment_color}">${trainer.payment_status}</span>`;
+                        const balance = trainer.total_amount - (trainer.paid_amount || 0);
+                        
+                        html += `
+                            <tr data-trainer="${trainer.name}">
+                                <td><a href="/app/event-trainer/${trainer.name}">${trainer.trainer_name}</a></td>
+                                <td>${trainer.email || '-'}</td>
+                                <td>${trainer.mobile_no || '-'}</td>
+                                <td>${trainer.rate_type}</td>
+                                <td>${format_currency(trainer.total_amount)}</td>
+                                <td class="text-success">${format_currency(trainer.paid_amount || 0)}</td>
+                                <td class="text-danger">${format_currency(balance)}</td>
+                                <td>${contract_badge}</td>
+                                <td>${payment_badge}</td>
+                                <td style="text-align: center;">
+                    <div class="dropdown">
+                        <button class="btn btn-default btn-sm" type="button" 
+                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                style="padding: 4px 8px; background: transparent; border: none; font-size: 18px; color: #8d99a6;">
+                            ⋮
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-right" style="min-width: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border-radius: 6px;">
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); frappe.set_route('Form', 'Event Trainer', '${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>View Details</span>
+                                </a>
+                            </li>
+                            <li class="divider" style="margin: 4px 0;"></li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); send_contract('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Send Contract</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); create_invoice('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Create Invoice</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); make_payment('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+                                        <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Record Payment</span>
+                                </a>
+                            </li>
+                            <li class="divider" style="margin: 4px 0;"></li>
+                            <li>
+                                <a href="#" onclick="event.preventDefault(); view_payments('${trainer.name}');"
+                                   style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                    <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>Payment History</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    // Update tbody content
+                    $('#trainers-tbody').html(html);
+                }
+            }
+        });
+    }
 }
 
 window.send_contract = function(event_trainer_name) {
@@ -293,14 +454,53 @@ window.send_contract = function(event_trainer_name) {
                         message: __('Contract sent successfully'),
                         indicator: 'green'
                     });
+                    // Refresh the dialog
+                    window.refresh_trainers_dialog();
                 }
             }
         });
     });
 }
 
-// UPDATED: Invoice creation with proper linking
+// FIXED: Check for existing invoice before creating
 window.create_invoice = function(event_trainer_name) {
+    // First check if invoice already exists
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Purchase Invoice',
+            filters: {
+                event_trainer: event_trainer_name,
+                docstatus: ['<', 2]  // Draft or Submitted (not cancelled)
+            },
+            fields: ['name', 'docstatus', 'grand_total', 'outstanding_amount'],
+            limit: 1
+        },
+        callback: function(r) {
+            if (r.message && r.message.length > 0) {
+                const existing_invoice = r.message[0];
+                const status = existing_invoice.docstatus === 0 ? 'Draft' : 'Submitted';
+                
+                frappe.confirm(
+                    __('An invoice ({0}) already exists for this trainer in {1} status. Do you want to open it instead?', 
+                       [existing_invoice.name, status]),
+                    function() {
+                        // Open existing invoice
+                        frappe.set_route('Form', 'Purchase Invoice', existing_invoice.name);
+                    },
+                    function() {
+                        // User chose not to open - do nothing
+                    }
+                );
+            } else {
+                // No existing invoice, create new one
+                create_new_invoice(event_trainer_name);
+            }
+        }
+    });
+}
+
+function create_new_invoice(event_trainer_name) {
     frappe.call({
         method: 'event_management.event_management.doctype.event_trainer.event_trainer.make_purchase_invoice',
         args: { source_name: event_trainer_name },
@@ -318,7 +518,7 @@ window.create_invoice = function(event_trainer_name) {
     });
 }
 
-// UPDATED: Payment creation with invoice linking
+// UPDATED: Payment creation with dialog refresh
 window.make_payment = function(event_trainer_name) {
     frappe.call({
         method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainer_payment_summary',
@@ -331,16 +531,19 @@ window.make_payment = function(event_trainer_name) {
     });
 }
 
-// UPDATED: Payment dialog with invoice linking
+// UPDATED: Payment dialog with auto-refresh after payment
 function show_make_payment_dialog(event_trainer_name, data) {
     const balance = data.balance;
     
-    // Build invoice options
-    let invoice_options = '';
+    // Build invoice options for dropdown
+    let invoice_options = [{ label: __('None (Direct Payment)'), value: '' }];
     if (data.invoices && data.invoices.length > 0) {
         data.invoices.forEach(inv => {
             if (inv.outstanding_amount > 0) {
-                invoice_options += `<option value="${inv.name}">${inv.name} (Outstanding: ${format_currency(inv.outstanding_amount)})</option>`;
+                invoice_options.push({
+                    label: `${inv.name} (Outstanding: ${format_currency(inv.outstanding_amount)})`,
+                    value: inv.name
+                });
             }
         });
     }
@@ -363,18 +566,12 @@ function show_make_payment_dialog(event_trainer_name, data) {
                 `
             },
             {
-               label: 'Link to Invoice',
-               fieldname: 'link_invoice',
-               fieldtype: 'Select',
-               options: [''].concat(
-               data.invoices
-              .filter(inv => inv.outstanding_amount > 0)
-              .map(inv => ({
-                label: `${inv.name} (Outstanding: ${format_currency(inv.outstanding_amount)})`,
-                value: inv.name
-             }))
-          )
-        },
+                label: 'Link to Invoice',
+                fieldname: 'link_invoice',
+                fieldtype: 'Select',
+                options: invoice_options.map(o => o.label),
+                description: 'Select an invoice to link this payment'
+            },
             {
                 label: 'Payment Amount',
                 fieldname: 'amount',
@@ -402,6 +599,10 @@ function show_make_payment_dialog(event_trainer_name, data) {
                 return;
             }
             
+            // Get actual invoice name from selected option
+            const selected_option = invoice_options.find(o => o.label === values.link_invoice);
+            const invoice_name = selected_option ? selected_option.value : null;
+            
             frappe.call({
                 method: 'event_management.event_management.doctype.event_trainer.event_trainer.create_trainer_payment_entry',
                 args: {
@@ -409,35 +610,38 @@ function show_make_payment_dialog(event_trainer_name, data) {
                     amount: values.amount,
                     reference_no: values.reference_no || event_trainer_name,
                     remarks: values.remarks,
-                    link_to_invoice: values.link_invoice || null
+                    link_to_invoice: invoice_name
                 },
                 freeze: true,
                 freeze_message: __('Creating Payment Entry...'),
                 callback: function(r) {
-                    if (r.message) {
-                        d.hide();
-                        frappe.show_alert({
-                            message: __('Payment Entry {0} created successfully', [`<a href="/app/payment-entry/${r.message}">${r.message}</a>`]),
-                            indicator: 'green'
-                        }, 5);
-                        
-                        frappe.confirm(
-                            __('Payment Entry created. Do you want to open it now?'),
-                            function() {
+                            if (r.message) {
+                                d.hide();
+                                frappe.show_alert({
+                                    message: __('Payment Entry {0} created successfully!', [r.message]),
+                                    indicator: 'green'
+                                }, 3);
+                                
+                                // Just navigate to the payment - don't auto-submit
                                 frappe.set_route('Form', 'Payment Entry', r.message);
+                                
+                                // Refresh dialogs after a delay
+                                setTimeout(function() {
+                                    window.refresh_trainers_dialog();
+                                }, 2000);
                             }
-                        );
-                    }
-                }
+                        }
             });
         }
     });
     
     // ADDED: Update amount when invoice is selected
     d.fields_dict.link_invoice.$input.on('change', function() {
-        const selected_invoice = d.get_value('link_invoice');
-        if (selected_invoice) {
-            const invoice = data.invoices.find(inv => inv.name === selected_invoice);
+        const selected_label = d.get_value('link_invoice');
+        const selected_option = invoice_options.find(o => o.label === selected_label);
+        
+        if (selected_option && selected_option.value) {
+            const invoice = data.invoices.find(inv => inv.name === selected_option.value);
             if (invoice && invoice.outstanding_amount > 0) {
                 d.set_value('amount', invoice.outstanding_amount);
             }
@@ -447,21 +651,21 @@ function show_make_payment_dialog(event_trainer_name, data) {
     d.show();
 }
 
-// UPDATED: View payments with invoice details
+// UPDATED: View payments with refresh capability
 window.view_payments = function(event_trainer_name) {
     frappe.call({
         method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainer_payment_summary',
         args: { event_trainer_name: event_trainer_name },
         callback: function(r) {
             if (r.message) {
-                show_payment_summary_dialog(r.message);
+                show_payment_summary_dialog(r.message, event_trainer_name);
             }
         }
     });
 }
 
-// UPDATED: Payment summary dialog with invoice section
-function show_payment_summary_dialog(data) {
+// UPDATED: Payment summary dialog with refresh button
+function show_payment_summary_dialog(data, event_trainer_name) {
     let html = `
         <div class="row">
             <div class="col-sm-6">
@@ -480,7 +684,7 @@ function show_payment_summary_dialog(data) {
                     </tr>
                     <tr>
                         <td><strong>Total Paid:</strong></td>
-                        <td class="text-success">${format_currency(data.total_paid)}</td>
+                        <td class="text-success"><strong>${format_currency(data.total_paid)}</strong></td>
                     </tr>
                     <tr>
                         <td><strong>Outstanding:</strong></td>
@@ -488,7 +692,14 @@ function show_payment_summary_dialog(data) {
                     </tr>
                     <tr>
                         <td><strong>Balance:</strong></td>
-                        <td class="text-danger">${format_currency(data.balance)}</td>
+                        <td class="text-danger"><strong>${format_currency(data.balance)}</strong></td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <span class="badge badge-${data.payment_status === 'Paid' ? 'success' : (data.payment_status === 'Partially Paid' ? 'warning' : 'danger')}" style="font-size: 14px;">
+                                ${data.payment_status}
+                            </span>
+                        </td>
                     </tr>
                 </table>
             </div>
@@ -507,7 +718,7 @@ function show_payment_summary_dialog(data) {
                 <td>${frappe.datetime.str_to_user(invoice.posting_date)}</td>
                 <td><a href="/app/purchase-invoice/${invoice.name}" target="_blank">${invoice.name}</a></td>
                 <td>${format_currency(invoice.grand_total)}</td>
-                <td>${format_currency(invoice.outstanding_amount)}</td>
+                <td><strong>${format_currency(invoice.outstanding_amount)}</strong></td>
                 <td><span class="badge badge-${status_color}">${invoice.status}</span></td>
                 <td>
                     <button class="btn btn-xs btn-default" onclick="frappe.set_route('Form', 'Purchase Invoice', '${invoice.name}')">View</button>
@@ -527,7 +738,7 @@ function show_payment_summary_dialog(data) {
             html += `<tr>
                 <td>${frappe.datetime.str_to_user(payment.posting_date)}</td>
                 <td><a href="/app/payment-entry/${payment.name}" target="_blank">${payment.reference_no || payment.name}</a></td>
-                <td>${format_currency(payment.paid_amount)}</td>
+                <td><strong>${format_currency(payment.paid_amount)}</strong></td>
                 <td>${payment.remarks || '-'}</td>
                 <td><button class="btn btn-xs btn-default" onclick="frappe.set_route('Form', 'Payment Entry', '${payment.name}')">View</button></td>
             </tr>`;
@@ -537,11 +748,33 @@ function show_payment_summary_dialog(data) {
         html += '<p class="text-muted">No payments recorded yet.</p>';
     }
     
-    new frappe.ui.Dialog({
+    const payment_dialog = new frappe.ui.Dialog({
         title: __('Payment Summary'),
         size: 'extra-large',
-        fields: [{ fieldtype: 'HTML', fieldname: 'summary_html', options: html }]
-    }).show();
+        fields: [{ 
+            fieldtype: 'HTML', 
+            fieldname: 'summary_html', 
+            options: html 
+        }],
+        primary_action_label: __('Refresh'),
+        primary_action: function() {
+            // Refresh the data
+            frappe.call({
+                method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainer_payment_summary',
+                args: { event_trainer_name: event_trainer_name },
+                callback: function(r) {
+                    if (r.message) {
+                        payment_dialog.hide();
+                        show_payment_summary_dialog(r.message, event_trainer_name);
+                        // Also refresh the main trainers dialog
+                        window.refresh_trainers_dialog();
+                    }
+                }
+            });
+        }
+    });
+    
+    payment_dialog.show();
 }
 
 // NEW: Function to pay invoice directly
@@ -560,16 +793,20 @@ window.pay_invoice = function(invoice_name) {
 
 function show_trainer_payment_summary(frm) {
     frappe.call({
-        method: 'frappe.client.get_list',
+        method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainers_with_fresh_status',
         args: {
-            doctype: 'Event Trainer',
-            filters: { event_registration: frm.doc.name },
-            fields: ['name', 'trainer_name', 'email', 'mobile_no', 'total_amount', 'paid_amount', 'payment_status']
+            event_registration: frm.doc.name
         },
         callback: function(r) {
             if (r.message && r.message.length > 0) {
                 let total_contract = 0, total_paid = 0;
-                let html = `<table class="table table-bordered">
+                let html = `
+                    <div style="margin-bottom: 15px;">
+                        <button class="btn btn-sm btn-default" onclick="window.refresh_trainer_summary_dialog()">
+                            <i class="fa fa-refresh"></i> Refresh
+                        </button>
+                    </div>
+                    <table class="table table-bordered">
                     <thead><tr>
                         <th>Trainer</th>
                         <th>Email</th>
@@ -586,6 +823,12 @@ function show_trainer_payment_summary(frm) {
                     total_contract += trainer.total_amount;
                     total_paid += (trainer.paid_amount || 0);
                     
+                    const payment_color = {
+                        'Paid': 'success',
+                        'Partially Paid': 'warning',
+                        'Unpaid': 'danger'
+                    }[trainer.payment_status] || 'secondary';
+                    
                     html += `<tr>
                         <td><a href="/app/event-trainer/${trainer.name}">${trainer.trainer_name}</a></td>
                         <td>${trainer.email || '-'}</td>
@@ -593,34 +836,150 @@ function show_trainer_payment_summary(frm) {
                         <td>${format_currency(trainer.total_amount)}</td>
                         <td class="text-success">${format_currency(trainer.paid_amount || 0)}</td>
                         <td class="text-danger">${format_currency(balance)}</td>
-                        <td><span class="badge">${trainer.payment_status}</span></td>
-                        <td>
-                            <button class="btn btn-xs btn-success" onclick="make_payment('${trainer.name}')">
-                                Pay
-                            </button>
-                            <button class="btn btn-xs btn-info" onclick="view_payments('${trainer.name}')">
-                                View
-                            </button>
+                        <td><span class="badge badge-${payment_color}">${trainer.payment_status}</span></td>
+                                <td style="text-align: center;">
+                            <div class="dropdown">
+                                <button class="btn btn-default btn-sm" type="button" 
+                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                        style="padding: 4px 8px; background: transparent; border: none; font-size: 18px; color: #8d99a6;">
+                                    ⋮
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-right" style="min-width: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border-radius: 6px;">
+                                    <li>
+                                        <a href="#" onclick="event.preventDefault(); frappe.set_route('Form', 'Event Trainer', '${trainer.name}');"
+                                           style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                            <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                                            </svg>
+                                            <span>View Details</span>
+                                        </a>
+                                    </li>
+                                    <li class="divider" style="margin: 4px 0;"></li>
+                                    <li>
+                                        <a href="#" onclick="event.preventDefault(); make_payment('${trainer.name}');"
+                                           style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                            <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+                                                <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/>
+                                            </svg>
+                                            <span>Record Payment</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="#" onclick="event.preventDefault(); view_payments('${trainer.name}');"
+                                           style="padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: #36414c; font-size: 14px;">
+                                            <svg style="width: 16px; height: 16px; flex-shrink: 0;" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                            </svg>
+                                            <span>Payment History</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </td>
                     </tr>`;
                 });
                 
-                html += `<tr class="font-weight-bold">
-                    <td colspan="3">TOTAL</td>
-                    <td>${format_currency(total_contract)}</td>
-                    <td class="text-success">${format_currency(total_paid)}</td>
-                    <td class="text-danger">${format_currency(total_contract - total_paid)}</td>
+                html += `<tr class="font-weight-bold" style="background-color: #f8f9fa;">
+                    <td colspan="3"><strong>TOTAL</strong></td>
+                    <td><strong>${format_currency(total_contract)}</strong></td>
+                    <td class="text-success"><strong>${format_currency(total_paid)}</strong></td>
+                    <td class="text-danger"><strong>${format_currency(total_contract - total_paid)}</strong></td>
                     <td colspan="2"></td>
                 </tr></tbody></table>`;
                 
-                new frappe.ui.Dialog({
+                window.trainer_summary_dialog = new frappe.ui.Dialog({
                     title: __('Trainer Payment Summary'),
                     fields: [{ fieldtype: 'HTML', fieldname: 'summary', options: html }],
                     size: 'extra-large'
-                }).show();
+                });
+                
+                window.trainer_summary_dialog.show();
             } else {
                 frappe.msgprint(__('No trainers assigned to this event yet.'));
             }
         }
     });
+}
+
+// NEW: Refresh function for trainer summary dialog
+window.refresh_trainer_summary_dialog = function() {
+    if (window.trainer_summary_dialog && window.current_event_registration) {
+        frappe.call({
+            method: 'event_management.event_management.doctype.event_trainer.event_trainer.get_trainers_with_fresh_status',
+            args: {
+                event_registration: window.current_event_registration
+            },
+            callback: function(r) {
+                if (r.message && window.trainer_summary_dialog) {
+                    // Rebuild the table
+                    let total_contract = 0, total_paid = 0;
+                    let html = `
+                        <div style="margin-bottom: 15px;">
+                            <button class="btn btn-sm btn-default" onclick="window.refresh_trainer_summary_dialog()">
+                                <i class="fa fa-refresh"></i> Refresh
+                            </button>
+                        </div>
+                        <table class="table table-bordered">
+                        <thead><tr>
+                            <th>Trainer</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Contract Amount</th>
+                            <th>Paid</th>
+                            <th>Balance</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr></thead><tbody>`;
+                    
+                    r.message.forEach(trainer => {
+                        const balance = trainer.total_amount - (trainer.paid_amount || 0);
+                        total_contract += trainer.total_amount;
+                        total_paid += (trainer.paid_amount || 0);
+                        
+                        const payment_color = {
+                            'Paid': 'success',
+                            'Partially Paid': 'warning',
+                            'Unpaid': 'danger'
+                        }[trainer.payment_status] || 'secondary';
+                        
+                        html += `<tr>
+                            <td><a href="/app/event-trainer/${trainer.name}">${trainer.trainer_name}</a></td>
+                            <td>${trainer.email || '-'}</td>
+                            <td>${trainer.mobile_no || '-'}</td>
+                            <td>${format_currency(trainer.total_amount)}</td>
+                            <td class="text-success">${format_currency(trainer.paid_amount || 0)}</td>
+                            <td class="text-danger">${format_currency(balance)}</td>
+                            <td><span class="badge badge-${payment_color}">${trainer.payment_status}</span></td>
+                            <td>
+                                <button class="btn btn-xs btn-success" onclick="make_payment('${trainer.name}')">
+                                    Pay
+                                </button>
+                                <button class="btn btn-xs btn-info" onclick="view_payments('${trainer.name}')">
+                                    View
+                                </button>
+                            </td>
+                        </tr>`;
+                    });
+                    
+                    html += `<tr class="font-weight-bold" style="background-color: #f8f9fa;">
+                        <td colspan="3"><strong>TOTAL</strong></td>
+                        <td><strong>${format_currency(total_contract)}</strong></td>
+                        <td class="text-success"><strong>${format_currency(total_paid)}</strong></td>
+                        <td class="text-danger"><strong>${format_currency(total_contract - total_paid)}</strong></td>
+                        <td colspan="2"></td>
+                    </tr></tbody></table>`;
+                    
+                    // Update the dialog content
+                    window.trainer_summary_dialog.fields_dict.summary.$wrapper.html(html);
+                    
+                    frappe.show_alert({
+                        message: __('Summary refreshed'),
+                        indicator: 'green'
+                    }, 2);
+                }
+            }
+        });
+    }
 }
