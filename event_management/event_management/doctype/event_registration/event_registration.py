@@ -158,7 +158,7 @@ class EventRegistration(Document):
             return {"type": "ui", "name": template_name}
         return {
             "type": "file",
-            "path": "event_management/templates/emails/registration_confirmation.html"
+            "path": "event_management/templates/emails/registration_confirmation"
         }
 
     def send_invitations_to_all_delegates(self):
@@ -416,7 +416,7 @@ def _get_attendance_email_template():
 
     return {
         "type": "file",
-        "path": "event_management/templates/emails/attendance_confirmation.html",
+        "path": "event_management/templates/emails/attendance_confirmation",
     }
 
 
@@ -685,7 +685,7 @@ def _get_event_welcome_template():
     
     return {
         "type": "file",
-        "path": "event_management/templates/emails/event_welcome.html",
+        "path": "event_management/templates/emails/event_welcome",
     }
     
 @frappe.whitelist()
