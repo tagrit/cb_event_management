@@ -22,7 +22,6 @@ class EventRegistration(Document):
 
         self.revenue = self.number_of_delegates * self.charges_per_delegate
         
-        # Helper methods called on 'self'
         self.generate_event_identifier()
 
         for delegate in self.delegates:
@@ -32,18 +31,15 @@ class EventRegistration(Document):
         self.update_all_confirmed_status()
         
     def before_insert(self):
-        """Runs once when the document is first created"""
         self.set_default_attachments()
 
     def set_default_attachments(self):
-        """Pre-populate the child table with standard document requirements"""
         default_docs = [
             {"name": "Program Outline", "desc": "Detailed schedule of the training sessions."},
             {"name": "Seminar Details", "desc": "Overview of topics, speakers, and objectives."},
             {"name": "Accommodations & Amenities", "desc": "Information regarding stay and local facilities."}
         ]
 
-        # Only add if the table is empty to avoid duplicates
         if not self.get("welcome_attachments"):
             for doc in default_docs:
                 self.append("welcome_attachments", {
@@ -52,7 +48,6 @@ class EventRegistration(Document):
                 })
         
     def update_all_confirmed_status(self):
-        """Check if all delegates have confirmed"""
         if not self.delegates:
             self.all_confirmed = 0
             return
@@ -60,84 +55,52 @@ class EventRegistration(Document):
         self.all_confirmed = 1 if all_confirmed else 0
         
     def on_update(self):
-        """This runs after saving the document (catches manual updates)"""
-        # Recalculate all_confirmed status on every update
         old_status = self.all_confirmed
         all_confirmed = all(d.confirmed for d in self.delegates) if self.delegates else False
         new_status = 1 if all_confirmed else 0
         
-        # Only update if status changed to avoid infinite loop
         if old_status != new_status:
             frappe.db.set_value("Event Registration", self.name, "all_confirmed", new_status, update_modified=False)
 
-
     def autoname(self):
-            """
-            This method runs BEFORE the document is created.
-            Whatever you set as self.name here becomes the Unique ID.
-            """
-            # 1. Clean strings (3 letters max)
-            def get_code(text):
-                if not text: return "NA"
-                return re.sub(r'[^a-zA-Z0-9]', '', text)[:3].upper()
+        def get_code(text):
+            if not text: return "NA"
+            return re.sub(r'[^a-zA-Z0-9]', '', text)[:3].upper()
 
-            org = get_code(self.organization_name)
-            loc = get_code(self.event_location)
-            
-            # Format date as YYMMDD
-            dt = getdate(self.start_date).strftime('%y%m%d') if self.start_date else "000000"
-            
-            base_id = f"{org}-{loc}-{dt}"
+        org = get_code(self.organization_name)
+        loc = get_code(self.event_location)
+        dt = getdate(self.start_date).strftime('%y%m%d') if self.start_date else "000000"
+        base_id = f"{org}-{loc}-{dt}"
 
-            # 2. Check for uniqueness and add a sequence suffix
-            # We search the database for how many records start with this base_id
-            existing_count = frappe.db.count("Event Registration", {
-                "name": ["like", f"{base_id}-%"]
-            })
-            
-            # Sequence 01, 02, etc.
-            suffix = str(existing_count + 1).zfill(2)
-            
-            # SET THE NAME (This is the critical part)
-            self.name = f"{base_id}-{suffix}"
-        
-             
+        existing_count = frappe.db.count("Event Registration", {
+            "name": ["like", f"{base_id}-%"]
+        })
+        suffix = str(existing_count + 1).zfill(2)
+        self.name = f"{base_id}-{suffix}"
         
     def generate_event_identifier(self):
-        """
-        Creates a guaranteed unique ID: ORG-LOC-YYMMDD-SEQ
-        Example: TAG-NAI-260125-01
-        """
         if all([self.organization_name, self.event_location, self.start_date]):
-            # 1. Clean strings (3 letters max)
             def get_code(text):
                 return re.sub(r'[^a-zA-Z0-9]', '', text)[:3].upper()
 
             org = get_code(self.organization_name)
             loc = get_code(self.event_location)
             dt = getdate(self.start_date).strftime('%y%m%d')
-            
             base_id = f"{org}-{loc}-{dt}"
 
-            # 2. Check for uniqueness and add a sequence suffix if needed
-            # Only run this if the identifier isn't set yet or if core fields changed
             if not self.event_identifier or not self.event_identifier.startswith(base_id):
                 existing_count = frappe.db.count("Event Registration", {
                     "event_identifier": ["like", f"{base_id}%"],
-                    "name": ["!=", self.name] # Don't count yourself
+                    "name": ["!=", self.name]
                 })
-                
-                # Sequence 01, 02, etc.
                 suffix = str(existing_count + 1).zfill(2)
                 self.event_identifier = f"{base_id}-{suffix}"
                 
     def generate_confirmation_token(self, email):
-        """Generate unique confirmation token for delegate"""
         token_string = f"{self.name}-{email}-{now()}"
         return hashlib.sha256(token_string.encode()).hexdigest()[:32]
 
     def update_all_confirmed_status(self):
-        """Check if all delegates have confirmed"""
         if not self.delegates:
             self.all_confirmed = 0
             return
@@ -145,24 +108,21 @@ class EventRegistration(Document):
         self.all_confirmed = 1 if all_confirmed else 0
 
     def on_submit(self):
-        # Only send invitations if this is NOT an amendment
         if not self.amended_from:
             self.send_invitations_to_all_delegates()
         else:
             frappe.msgprint(_("This is an amended record. Invitations were not re-sent automatically."))
 
     def _get_attendance_email_template(self):
-        """Helper to resolve template using exact name from your patch"""
         template_name = "Event Registration Confirmation"
         if frappe.db.exists("Email Template", template_name):
             return {"type": "ui", "name": template_name}
         return {
             "type": "file",
-            "path": "event_management/templates/emails/registration_confirmation"
+            "path": "event_management/templates/emails/registration_confirmation.html"
         }
 
     def send_invitations_to_all_delegates(self):
-        """Bulk send using the exact structure of your UI template with PDF attachments"""
         if not self.delegates:
             frappe.msgprint("No delegates found!")
             return
@@ -184,7 +144,6 @@ class EventRegistration(Document):
             frappe.msgprint(f"✅ {success_count} Invitations sent successfully!")
 
     def _send_single_invitation(self, delegate, template_info):
-        """Send email to a single delegate with PDF attachments"""
         base_url = get_url()
         confirmation_link = (
             f"{base_url}/api/method/event_management.event_management.doctype."
@@ -205,7 +164,6 @@ class EventRegistration(Document):
             "cpd_calendar_link": settings.calendar_link or "https://tagrit.com/calendars",
         }
 
-        # Generate PDF attachments
         attachments = self._generate_pdf_attachments(template_args)
 
         if template_info["type"] == "ui":
@@ -219,55 +177,52 @@ class EventRegistration(Document):
                 attachments=attachments
             )
         else:
+            # ✅ FIX: Use frappe.render_template() to resolve the full app path,
+            # then pass as message= instead of template= to avoid Frappe
+            # mangling the path into: templates/emails/<path>.html.html
+            message = frappe.render_template(
+                template_info["path"],
+                template_args
+            )
             frappe.sendmail(
                 recipients=[delegate.email],
                 subject=f"{self.event_name} Registration Confirmation",
-                template=template_info["path"],
-                args=template_args,
+                message=message,
                 attachments=attachments
             )
 
     def _generate_pdf_attachments(self, template_args):
         attachments = []
         try:
-            # Ensure the template knows it's rendering for a PDF
             template_args.update({"is_pdf": True})
 
-            # 1. Fetch paths from Event Management Setting
             settings = frappe.get_doc("Event Management Setting")
             
-            # 2. Helper to find the file on the server (handles Public and Private)
             def get_full_path(file_url):
                 if not file_url: 
                     return None
                 clean_url = file_url.lstrip("/")
-                # If it's private, it's in the site root's private folder
                 if clean_url.startswith("private/"):
                     return frappe.get_site_path(clean_url)
-                # Otherwise, it's in the public folder
                 return frappe.get_site_path("public", clean_url)
 
-            # 3. Process Logo (Dynamic Base64)
             logo_path = get_full_path(settings.company_logo)
             logo_base64 = ""
             if logo_path and os.path.exists(logo_path):
                 with open(logo_path, 'rb') as f:
                     logo_base64 = base64.b64encode(f.read()).decode('utf-8')
 
-            # 4. Process Signature (Dynamic Base64)
             signature_path = get_full_path(settings.company_signature)
             signature_base64 = ""
             if signature_path and os.path.exists(signature_path):
                 with open(signature_path, 'rb') as f:
                     signature_base64 = base64.b64encode(f.read()).decode('utf-8')
 
-            # 5. Add encoded data to template arguments
             template_args.update({
                 "logo_base64": logo_base64,
                 "signature_base64": signature_base64
             })
 
-            # 6. Generate Invitation PDF
             invitation_html = frappe.render_template(
                 "event_management/templates/attachments/training_invitation_letter.html",
                 template_args
@@ -277,7 +232,6 @@ class EventRegistration(Document):
                 "fcontent": get_pdf(invitation_html)
             })
             
-            # 7. Generate Proforma PDF
             invoice_html = frappe.render_template(
                 "event_management/templates/attachments/proforma_invoice.html",
                 template_args
@@ -288,19 +242,15 @@ class EventRegistration(Document):
             })
             
         except Exception:
-            # Log the full traceback to the 'Error Log' DocType
             frappe.log_error(frappe.get_traceback(), "PDF Attachment Generation Failed")
         
         return attachments
             
-# API endpoint for delegate confirmation
 @frappe.whitelist(allow_guest=True)
 def confirm_delegate(token):
-    """Confirm delegate attendance via email link"""
     if not token:
         return {"success": False, "message": "Invalid confirmation link"}
 
-    # Find the delegate with this token
     delegates = frappe.get_all(
         "Event Delegate",
         filters={"confirmation_token": token},
@@ -312,7 +262,6 @@ def confirm_delegate(token):
 
     delegate = delegates[0]
 
-    # Check if already confirmed
     if delegate.confirmed:
         return {
             "success": True,
@@ -321,40 +270,30 @@ def confirm_delegate(token):
         }
 
     try:
-        # Update delegate confirmation
         frappe.db.set_value(
             "Event Delegate",
             delegate.name,
             {"confirmed": 1, "confirmation_date": now()},
         )
 
-        # Get event details
         event = frappe.get_doc("Event Registration", delegate.parent)
-
-        # Update all_confirmed status
         event.update_all_confirmed_status()
         event.save()
 
-        # Send confirmation email
         frappe.sendmail(
             recipients=[delegate.email],
             subject=f"Confirmation Received - {event.event_name}",
             message=f"""
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #4CAF50;">✓ Attendance Confirmed!</h2>
-                
                 <p>Dear {delegate.first_name} {delegate.last_name},</p>
-                
                 <p>Thank you for confirming your attendance at <strong>{event.event_name}</strong>.</p>
-                
                 <div style="background-color: #e8f5e9; padding: 20px; border-radius: 5px; margin: 20px 0;">
                     <p style="margin: 0;"><strong>Your attendance is confirmed for:</strong></p>
                     <p style="margin: 10px 0 0 0;">{event.start_date} to {event.end_date}</p>
                     <p style="margin: 5px 0 0 0;">{event.event_venue}, {event.event_location}</p>
                 </div>
-                
                 <p>You will receive additional information about the event closer to the date.</p>
-                
                 <p>Best regards,<br>Event Management Team</p>
             </div>
             """,
@@ -379,7 +318,6 @@ def confirm_delegate(token):
 
 @frappe.whitelist()
 def get_confirmation_summary(event_name):
-    """Get summary of delegate confirmations for display"""
     event = frappe.get_doc("Event Registration", event_name)
 
     total = len(event.delegates)
@@ -407,32 +345,22 @@ def get_confirmation_summary(event_name):
 
 
 def _get_attendance_email_template():
-    """
-    Prefer UI Email Template if client created one.
-    Fallback to file-based template shipped with the app.
-    """
     if frappe.db.exists("Email Template", "Event Attendance Confirmation"):
         return {"type": "ui", "name": "Event Attendance Confirmation"}
-
     return {
         "type": "file",
-        "path": "event_management/templates/emails/attendance_confirmation",
+        "path": "event_management/templates/emails/attendance_confirmation.html"
     }
 
 
 @frappe.whitelist()
 def resend_invitation(event_name, delegate_email):
-    """Resend invitation with PDF attachments"""
-    # Validate inputs early (fail fast)
     if not event_name or not delegate_email:
         frappe.throw("Missing event or delegate email")
 
     validate_email_address(delegate_email, throw=True)
 
-    # Load event (server-side, trusted context)
     event = frappe.get_doc("Event Registration", event_name)
-
-    # Locate delegate
     delegate = next((d for d in event.delegates if d.email == delegate_email), None)
 
     if not delegate:
@@ -444,14 +372,12 @@ def resend_invitation(event_name, delegate_email):
         )
         return
 
-    # Build secure confirmation link (guest-safe)
     confirmation_link = (
         get_url()
         + "/api/method/event_management.event_management.doctype.event_registration."
         "event_registration.confirm_delegate" + f"?token={delegate.confirmation_token}"
     )
 
-    # Prepare template variables (shared by subject + body)
     template_args = {
         "division": event.division or "Training",
         "event_date": formatdate(event.start_date, "dd MMM yyyy"),
@@ -463,26 +389,29 @@ def resend_invitation(event_name, delegate_email):
         "company_name": frappe.defaults.get_global_default("company"),
     }
 
-    # Resolve template (UI override OR app default)
     template_info = _get_attendance_email_template()
 
-    # Send email (queue-based, production safe)
     try:
         if template_info["type"] == "ui":
             email_template = frappe.get_doc("Email Template", template_info["name"])
             subject = frappe.render_template(email_template.subject, template_args)
             message = frappe.render_template(email_template.response, template_args)
-
             frappe.sendmail(
                 recipients=[delegate.email],
                 subject=subject,
                 message=message,
             )
         else:
+            # ✅ FIX: Same fix applied here — pre-render with frappe.render_template()
+            # to correctly resolve the app path, pass as message= not template=
+            message = frappe.render_template(
+                template_info["path"],
+                template_args
+            )
             frappe.sendmail(
                 recipients=[delegate.email],
-                template=template_info["path"],
-                args=template_args,
+                subject=f"{event.event_name} - Invitation",
+                message=message,
             )
 
     except Exception:
@@ -494,32 +423,24 @@ def resend_invitation(event_name, delegate_email):
 
 @frappe.whitelist()
 def send_confirmation_list_email(recipient=None):
-    """
-    Sends a detailed report of all upcoming events showing confirmation status.
-    Shows all events regardless of confirmation percentage.
-    If no recipient is provided, it defaults to the Admin Email in settings.
-    """
     today = getdate(nowdate())
     
-    # Get ALL upcoming submitted events, regardless of confirmation status
     events = frappe.get_all(
         "Event Registration",
         filters={
             "docstatus": 1,
-            "start_date": [">=", today]  # Only upcoming events
+            "start_date": [">=", today]
         },
         fields=["name", "event_name", "organization_name", "start_date", "end_date", "all_confirmed"],
-        order_by="start_date asc"  # Sort by date, earliest first
+        order_by="start_date asc"
     )
 
     if not events:
         frappe.msgprint("No upcoming events found for reporting.")
         return
 
-    # Generate the professional HTML body
     html_report = _generate_event_report_html(events, report_type="upcoming_all")
 
-    # Determine recipient
     if not recipient:
         recipient = frappe.db.get_single_value("Event Management Setting", "admin_email") or "info@tagrit.com"
 
@@ -537,9 +458,6 @@ def send_confirmation_list_email(recipient=None):
 
 
 def _generate_event_report_html(events, report_type="all"):
-    """Helper to build the HTML table structure for reports"""
-    
-    # Simplified title logic - only two types needed
     if report_type == "upcoming_all":
         title = "Upcoming Events - Confirmation Status Report"
         subtitle = f"Showing all {len(events)} upcoming events with delegate confirmation details"
@@ -561,7 +479,6 @@ def _generate_event_report_html(events, report_type="all"):
         percentage = round((confirmed / total * 100) if total > 0 else 0, 1)
         status_color = "#20639B" if event.all_confirmed else "#ff9800"
         
-        # Calculate days until event
         days_until = (getdate(event.start_date) - getdate(nowdate())).days
         days_text = f"{days_until} days away" if days_until > 0 else "Today" if days_until == 0 else f"{abs(days_until)} days ago"
 
@@ -605,34 +522,31 @@ def _generate_event_report_html(events, report_type="all"):
 
 @frappe.whitelist()
 def send_welcome_email_to_confirmed(event_name):
-    """Send welcome email with user-specified attachments to confirmed delegates"""
     if not event_name:
         frappe.throw("Missing event name")
 
     event = frappe.get_doc("Event Registration", event_name)
 
-    # 1. Get only confirmed delegates
     confirmed_delegates = [d for d in event.delegates if d.confirmed]
     if not confirmed_delegates:
         frappe.msgprint("No confirmed delegates yet!")
         return
 
-    # 2. Collect the user-uploaded attachments from the child table
-    # 2. Collect the user-uploaded attachments from the child table
     custom_attachments = []
     for row in event.get("welcome_attachments"):
         if row.file:
-            # Get the File document using the URL
             file_doc = frappe.get_doc("File", {"file_url": row.file})
-            
-            # Use the ACTUAL filename from the system (e.g., seminar_v2.pdf)
-            # This ensures the extension (.pdf, .png) is always present
+            # ✅ FIX: Get raw content, encode as base64 to survive email queue
+            # serialization on production. Raw bytes break in JSON serialization.
+            file_content = file_doc.get_content()
+            if isinstance(file_content, str):
+                file_content = file_content.encode("utf-8")
             custom_attachments.append({
-                "fname": file_doc.file_name, 
-                "fcontent": file_doc.get_content()
+                "fname": file_doc.file_name or row.file.split("/")[-1],
+                "fcontent": base64.b64encode(file_content).decode("utf-8"),
+                "is_private": file_doc.is_private
             })
 
-    # 3. Resolve template
     template_info = _get_event_welcome_template()
     success_count = 0
 
@@ -652,21 +566,25 @@ def send_welcome_email_to_confirmed(event_name):
                 email_template = frappe.get_doc("Email Template", template_info["name"])
                 subject = frappe.render_template(email_template.subject, template_args)
                 message = frappe.render_template(email_template.response, template_args)
-
                 frappe.sendmail(
                     recipients=[delegate.email],
                     subject=subject,
                     message=message,
-                    attachments=custom_attachments, # Attach the user documents here
+                    attachments=custom_attachments,
                     now=True
                 )
             else:
+                # ✅ FIX: Same fix — pre-render with frappe.render_template()
+                # to correctly resolve app path, pass as message= not template=
+                message = frappe.render_template(
+                    template_info["path"],
+                    template_args
+                )
                 frappe.sendmail(
                     recipients=[delegate.email],
                     subject=f"Welcome to {event.event_name}",
-                    template=template_info["path"],
-                    args=template_args,
-                    attachments=custom_attachments # Attach here as well
+                    message=message,
+                    attachments=custom_attachments
                 )
             success_count += 1
 
@@ -678,19 +596,16 @@ def send_welcome_email_to_confirmed(event_name):
         frappe.msgprint(f"✅ Welcome email with {len(custom_attachments)} attachments sent to {success_count} delegates!")
 
 def _get_event_welcome_template():
-    """Helper to find the Event Welcome template"""
     template_name = "Event Welcome"
     if frappe.db.exists("Email Template", template_name):
         return {"type": "ui", "name": template_name}
-    
     return {
         "type": "file",
-        "path": "event_management/templates/emails/event_welcome",
+        "path": "event_management/templates/emails/event_welcome.html"
     }
     
 @frappe.whitelist()
 def get_venues_by_location(location):
-    """Get all venues for a specific location"""
     venues = frappe.get_all(
         "Event Venue",
         filters={"location": location},
@@ -701,10 +616,7 @@ def get_venues_by_location(location):
 
 @frappe.whitelist()
 def send_automated_reminders():
-    """Runs every Monday at 9am"""
     today = getdate(nowdate())
-    
-    # Range: 7 days from now (Next Monday) to 13 days from now (Next Sunday)
     start_range = add_days(today, 7)
     end_range = add_days(today, 13)
     
@@ -727,20 +639,14 @@ def send_automated_reminders():
 
 @frappe.whitelist()
 def trigger_automated_wednesday_report():
-    """
-    Scheduled job for Wednesdays. 
-    Finds ALL upcoming events (starting in the next 10 days) showing their confirmation status,
-    regardless of how many delegates have confirmed.
-    """
     today = getdate(nowdate())
     reporting_window = add_days(today, 10)
 
-    # Find ALL submitted upcoming events, regardless of confirmation status
     events_to_process = frappe.get_all(
         "Event Registration",
         filters={
             "docstatus": 1,
-            "start_date": ["between", [today, reporting_window]],  # Next 10 days
+            "start_date": ["between", [today, reporting_window]],
             "final_report_sent": 0
         },
         fields=["name", "event_name", "organization_name", "start_date", "end_date", "all_confirmed"],
@@ -748,14 +654,11 @@ def trigger_automated_wednesday_report():
     )
 
     if not events_to_process:
-        # Optional: Log that no events need reporting
         frappe.log_error("No upcoming events found for Wednesday report", "Wednesday Report - No Events")
         return
 
-    # Use existing professional HTML generator
     html_report = _generate_event_report_html(events_to_process, report_type="upcoming_all")
 
-    # Send the mail
     recipient = frappe.db.get_single_value("Event Management Setting", "admin_email") or "info@tagrit.com"
     
     frappe.sendmail(
@@ -765,13 +668,11 @@ def trigger_automated_wednesday_report():
         now=True
     )
 
-    # Mark them as sent so they don't send again next Wednesday
     for e in events_to_process:
         frappe.db.set_value("Event Registration", e.name, "final_report_sent", 1, update_modified=False)
     
     frappe.db.commit()
     
-    # Log success
     frappe.log_error(
         f"Wednesday report sent successfully for {len(events_to_process)} events to {recipient}", 
         "Wednesday Report Success"
@@ -779,21 +680,16 @@ def trigger_automated_wednesday_report():
     
 @frappe.whitelist()
 def get_dashboard_data():
-    """Get aggregated data for Event Management dashboard"""
-    
-    # Total Events by Status
     draft_count = frappe.db.count("Event Registration", {"docstatus": 0})
     confirmed_count = frappe.db.count("Event Registration", {"docstatus": 1, "all_confirmed": 1})
     pending_count = frappe.db.count("Event Registration", {"docstatus": 1, "all_confirmed": 0})
     
-    # Total Revenue
     total_revenue = frappe.db.sql("""
         SELECT SUM(revenue) as total
         FROM `tabEvent Registration`
         WHERE docstatus = 1
     """, as_dict=1)[0].total or 0
     
-    # Total Delegates
     total_delegates = frappe.db.sql("""
         SELECT COUNT(*) as total
         FROM `tabEvent Delegate`
@@ -802,7 +698,6 @@ def get_dashboard_data():
         )
     """, as_dict=1)[0].total or 0
     
-    # Confirmed vs Pending Delegates
     confirmed_delegates = frappe.db.sql("""
         SELECT COUNT(*) as total
         FROM `tabEvent Delegate`
@@ -814,7 +709,6 @@ def get_dashboard_data():
     
     pending_delegates = total_delegates - confirmed_delegates
     
-    # Upcoming Events (next 30 days)
     upcoming_events = frappe.db.sql("""
         SELECT COUNT(*) as total
         FROM `tabEvent Registration`
@@ -822,7 +716,6 @@ def get_dashboard_data():
         AND start_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
     """, as_dict=1)[0].total or 0
     
-    # Events by Month (last 6 months)
     events_by_month = frappe.db.sql("""
         SELECT 
             DATE_FORMAT(start_date, '%b %Y') as month,
@@ -834,7 +727,6 @@ def get_dashboard_data():
         ORDER BY start_date
     """, as_dict=1)
     
-    # Revenue by Month (last 6 months)
     revenue_by_month = frappe.db.sql("""
         SELECT 
             DATE_FORMAT(start_date, '%b %Y') as month,
@@ -846,7 +738,6 @@ def get_dashboard_data():
         ORDER BY start_date
     """, as_dict=1)
     
-    # Top Organizations by Events
     top_organizations = frappe.db.sql("""
         SELECT 
             organization_name,
@@ -859,7 +750,6 @@ def get_dashboard_data():
         LIMIT 5
     """, as_dict=1)
     
-    # Confirmation Rate
     confirmation_rate = round((confirmed_delegates / total_delegates * 100) if total_delegates > 0 else 0, 1)
     
     return {
