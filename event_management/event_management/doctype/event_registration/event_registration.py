@@ -190,37 +190,41 @@ class EventRegistration(Document):
                 message=message,
                 attachments=attachments
             )
+            
 
     def _generate_pdf_attachments(self, template_args):
         attachments = []
         try:
             template_args.update({"is_pdf": True})
-
             settings = frappe.get_doc("Event Management Setting")
-            
-            def get_full_path(file_url):
-                if not file_url: 
-                    return None
-                clean_url = file_url.lstrip("/")
-                if clean_url.startswith("private/"):
-                    return frappe.get_site_path(clean_url)
-                return frappe.get_site_path("public", clean_url)
 
-            logo_path = get_full_path(settings.company_logo)
-            logo_base64 = ""
-            if logo_path and os.path.exists(logo_path):
-                with open(logo_path, 'rb') as f:
-                    logo_base64 = base64.b64encode(f.read()).decode('utf-8')
-
-            signature_path = get_full_path(settings.company_signature)
-            signature_base64 = ""
-            if signature_path and os.path.exists(signature_path):
-                with open(signature_path, 'rb') as f:
-                    signature_base64 = base64.b64encode(f.read()).decode('utf-8')
+            def get_file_as_base64(file_url):
+                """Resolve any file URL to base64, works on both local and production."""
+                if not file_url:
+                    return ""
+                try:
+                    # Use Frappe's File doctype — handles both public and private files
+                    file_doc = frappe.get_doc("File", {"file_url": file_url})
+                    content = file_doc.get_content()
+                    if isinstance(content, str):
+                        content = content.encode("utf-8")
+                    return base64.b64encode(content).decode("utf-8")
+                except Exception:
+                    # Fallback: try direct filesystem path
+                    clean = file_url.lstrip("/")
+                    if clean.startswith("private/"):
+                        path = frappe.get_site_path(clean)
+                    else:
+                        path = frappe.get_site_path("public", clean)
+                    if os.path.exists(path):
+                        with open(path, "rb") as f:
+                            return base64.b64encode(f.read()).decode("utf-8")
+                    frappe.log_error(f"Logo/signature file not found: {file_url}", "PDF Asset Missing")
+                    return ""
 
             template_args.update({
-                "logo_base64": logo_base64,
-                "signature_base64": signature_base64
+                "logo_base64": get_file_as_base64(settings.company_logo),
+                "signature_base64": get_file_as_base64(settings.company_signature),
             })
 
             invitation_html = frappe.render_template(
@@ -231,7 +235,7 @@ class EventRegistration(Document):
                 "fname": f"Invitation_{self.name}.pdf",
                 "fcontent": get_pdf(invitation_html)
             })
-            
+
             invoice_html = frappe.render_template(
                 "event_management/templates/attachments/proforma_invoice.html",
                 template_args
@@ -240,10 +244,10 @@ class EventRegistration(Document):
                 "fname": f"Proforma_{self.name}.pdf",
                 "fcontent": get_pdf(invoice_html)
             })
-            
+
         except Exception:
             frappe.log_error(frappe.get_traceback(), "PDF Attachment Generation Failed")
-        
+
         return attachments
             
 @frappe.whitelist(allow_guest=True)
