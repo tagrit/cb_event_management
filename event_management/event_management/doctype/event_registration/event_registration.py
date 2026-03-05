@@ -151,11 +151,14 @@ class EventRegistration(Document):
         )
 
         settings = frappe.get_doc("Event Management Setting")
+        cc = settings.cc_email or []  # 👈 grab CC from settings (adjust field name as needed)
         
         template_args = {
             "event": self,
             "delegate": {
                 "full_name": f"{delegate.first_name} {delegate.last_name}",
+                "first_name": f"{delegate.first_name}",
+                "last_name" : f"{delegate.last_name}",
                 "email": delegate.email,
             },
             "event_date": f"{formatdate(self.start_date, 'dd MMM yyyy')} to {formatdate(self.end_date, 'dd MMM yyyy')}",
@@ -171,21 +174,20 @@ class EventRegistration(Document):
             subject = frappe.render_template(email_template.subject, template_args)
             message = frappe.render_template(email_template.response, template_args)
             frappe.sendmail(
-                recipients=[delegate.email], 
-                subject=subject, 
+                recipients=[delegate.email],
+                cc=cc,  # 👈 added
+                subject=subject,
                 message=message,
                 attachments=attachments
             )
         else:
-            # ✅ FIX: Use frappe.render_template() to resolve the full app path,
-            # then pass as message= instead of template= to avoid Frappe
-            # mangling the path into: templates/emails/<path>.html.html
             message = frappe.render_template(
                 template_info["path"],
                 template_args
             )
             frappe.sendmail(
                 recipients=[delegate.email],
+                cc=cc,  # 👈 added
                 subject=f"{self.event_name} Registration Confirmation",
                 message=message,
                 attachments=attachments
@@ -386,7 +388,12 @@ def resend_invitation(event_name, delegate_email):
         "division": event.division or "Training",
         "event_date": formatdate(event.start_date, "dd MMM yyyy"),
         "location": f"{event.event_venue}, {event.event_location}",
-        "delegate": {"full_name": f"{delegate.first_name} {delegate.last_name}"},
+        "delegate": {"full_name": f"{delegate.first_name} {delegate.last_name}",
+                     "first_name": delegate.first_name,   # ← ADD THIS
+                     "last_name": delegate.last_name
+                     },
+        "first_name": f"{delegate.first_name}",
+        "last_name" : f"{delegate.last_name}",
         "event": event,
         "confirmation_link": confirmation_link,
         "client_list": [f"{d.first_name} {d.last_name}" for d in event.delegates],
@@ -560,6 +567,8 @@ def send_welcome_email_to_confirmed(event_name):
                 "event": event,
                 "delegate": {
                     "full_name": f"{delegate.first_name} {delegate.last_name}",
+                    "first_name": f"{delegate.first_name}",
+                    "last_name" : f"{delegate.last_name}",
                     "email": delegate.email,
                 },
                 "event_date": f"{formatdate(event.start_date, 'dd MMM yyyy')} to {formatdate(event.end_date, 'dd MMM yyyy')}",
