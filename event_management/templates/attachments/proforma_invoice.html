@@ -13,32 +13,52 @@
         .banner { background: #f0f4f8; padding: 8px; text-align: center; font-size: 9px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #dce4ec; }
         .banner a { color: #0066b2; font-weight: bold; text-decoration: none; }
 
-        .invoice-meta { display: flex; justify-content: space-between; margin-bottom: 20px; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+        .invoice-meta { overflow: hidden; margin-bottom: 20px; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+        .invoice-meta .left { float: left; }
+        .invoice-meta .right { float: right; text-align: right; }
 
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .items-table th { background: #0066b2; color: white; padding: 10px; text-align: left; text-transform: uppercase; }
+        .items-table th { background: #0066b2; color: white; padding: 10px; text-align: left; text-transform: uppercase; font-size: 10px; }
+        .items-table th.align-right { text-align: right; }
         .items-table td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
-        .amount { text-align: right; font-weight: bold; }
+        .items-table td.num { text-align: center; }
+        .items-table td.amount { text-align: right; font-weight: bold; }
+        .items-table td.rate { text-align: right; }
 
-        /* FIXED BANK SECTION USING TABLE */
-        .bank-table { width: 100%; border-spacing: 10px 0; margin-left: -10px; margin-right: -10px; }
+        /* Subtotal / VAT row */
+        .items-table tr.vat-row td { border-bottom: 1px solid #eee; }
+        .items-table tr.total-row { background: #f8f9fa; font-size: 13px; }
+        .items-table tr.total-row td { border-bottom: none; }
+
+        /* BANK SECTION */
+        .bank-outer { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .bank-outer td { vertical-align: top; padding: 0; }
         .bank-col { 
-            width: 50%; 
             border: 1px solid #e0e0e0; 
             border-radius: 4px; 
             padding: 10px; 
             background: #fafafa; 
-            vertical-align: top;
         }
         .bank-title { font-weight: bold; color: #0066b2; border-bottom: 1px solid #eee; margin-bottom: 8px; padding-bottom: 4px; font-size: 11px; }
-        
-        .mpesa-row { margin-top: 10px; background: #4caf50; color: white; padding: 8px; text-align: center; border-radius: 4px; font-weight: bold; }
+
+        /* Bank details colored table (like image) */
+        .bank-details-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border: 1px solid #ccc; }
+        .bank-details-table th { background: #ffc107; color: #333; padding: 7px 10px; font-weight: bold; text-align: left; border: 1px solid #ccc; font-size: 10px; }
+        .bank-details-table td { padding: 7px 10px; border: 1px solid #ccc; font-size: 10px; }
+        .bank-details-table td.stanbic { background: #0066b2; color: white; font-weight: bold; }
+        .bank-details-table td.kcb { background: #388e3c; color: white; font-weight: bold; }
+        .bank-details-table .header-row th:first-child { background: #333; color: white; }
+        .bank-details-table .mpesa-row td { background: #388e3c; color: white; font-weight: bold; }
+        .bank-details-table .mpesa-row td:first-child { background: #388e3c; }
+
         .notes { background: #fff9db; border: 1px solid #ffe066; padding: 12px; border-radius: 4px; margin-top: 15px; }
         .footer { text-align: center; margin-top: 20px; font-size: 11px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
         .warning { color: white; background: #e03131; padding: 8px; text-align: center; font-weight: bold; margin-top: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
+
+    <!-- ===== HEADER ===== -->
     <table class="header-table">
         <tr>
             <td class="logo-cell">
@@ -59,93 +79,134 @@
         </tr>
     </table>
 
+    <!-- ===== BANNER ===== -->
     <div class="banner">
         IF YOU WANT TO INSPIRE SUCCESS, DO IT EARLY | <a href="https://capabuil.com/">REGISTER FOR KIDS MONEY</a> | <a href="https://capabuil.com/">JOIN RETIREWELL PROGRAMS</a> 
     </div>
 
+    <!-- ===== INVOICE META ===== -->
     <div class="invoice-meta">
-        <div style="float: left;">
-            <div><strong>Organization:</strong> {{ event.organization_name }}</div> 
-            
-            <div><strong>Profoma For:</strong>TRAINING</div> 
-            
+        <div class="left">
+            <div><strong>M/s:</strong> {{ event.organization_name }}</div>
+            <div><strong>Order No:</strong> TRAINING FEES</div>
         </div>
-        <div style="float: right; text-align: right;">
-            <div><strong>Date:</strong> {{ frappe.utils.formatdate(frappe.utils.nowdate()) }}</div> 
-            
+        <div class="right">
+            <div><strong>Date:</strong> {{ frappe.utils.formatdate(frappe.utils.nowdate()) }}</div>
             <div><strong>Proforma Invoice No:</strong> {{ event.name }}</div>
-            
         </div>
-        <div style="clear: both;"></div>
+        <div style="clear:both;"></div>
     </div>
+
+    <!-- ===== LINE ITEMS TABLE ===== -->
+    <!--
+        CALCULATION LOGIC:
+          subtotal  = number_of_delegates × charges_per_delegate
+          vat       = subtotal × 0.16
+          total     = subtotal + vat   (i.e. subtotal × 1.16)
+
+        Columns: No. | Description | @ (Rate per delegate) | Kes. (Line total)
+        VAT row:  spans description, shows vat amount in both @ and Kes columns
+        TOTAL:    spans description + @, shows total in Kes column only
+    -->
+    {% set subtotal = event.number_of_delegates * event.charges_per_delegate %}
+    {% set vat      = subtotal * 0.16 %}
+    {% set total    = subtotal + vat %}
 
     <table class="items-table">
         <thead>
             <tr>
+                <th style="width:40px;">No.</th>
                 <th>Description</th>
-                <th style="width: 100px; text-align: right;">Rate (Kes)</th>
-                <th style="width: 120px; text-align: right;">Amount (Kes)</th>
+                <th style="width:110px;" class="align-right">@ (Kes)</th>
+                <th style="width:120px;" class="align-right">Kes.</th>
+            </tr>
+        </thead>
+        <tbody>
+
+            <!-- ── Training fee row ── -->
+            <tr>
+                <td class="num">1.</td>
+                <td>
+                    <strong>Training fee for:</strong><br>
+                    {% if event.delegates %}
+                        <ol style="margin:4px 0 4px 20px; padding:0;">
+                        {%- for delegate in event.delegates -%}
+                            <li>{{ delegate.first_name }} {{ delegate.last_name }}</li>
+                        {%- endfor -%}
+                        </ol>
+                    {% else %}
+                        {{ event.number_of_delegates }} Delegate(s)<br>
+                    {% endif %}
+                    <br>
+                    To attend the Training:<br>
+                    <strong>{{ event.event_name }}</strong><br>
+                    scheduled for <strong>{{ frappe.utils.formatdate(event.start_date) }} - {{ frappe.utils.formatdate(event.end_date) }}</strong>
+                    at <strong>{{ event.event_venue }}, {{ event.event_location }}</strong>
+                </td>
+                <!-- Rate per delegate -->
+                <td class="rate">{{ "{:,.2f}".format(event.charges_per_delegate) }}</td>
+                <!-- Line total = delegates × rate -->
+                <td class="amount">{{ "{:,.2f}".format(subtotal) }}</td>
+            </tr>
+
+            <!-- ── VAT row ── -->
+            <tr class="vat-row">
+                <td></td>
+                <td><strong>Tax (VAT @ 16%)</strong></td>
+                <!-- VAT amount shown in both rate and total columns (mirrors image layout) -->
+                <td class="rate">{{ "{:,.2f}".format(vat) }}</td>
+                <td class="amount">{{ "{:,.2f}".format(vat) }}</td>
+            </tr>
+
+            <!-- ── TOTAL row ── -->
+            <tr class="total-row">
+                <td></td>
+                <td colspan="2" style="text-align:right;"><strong>TOTAL</strong></td>
+                <td class="amount" style="color:#0066b2;"><strong>{{ "{:,.2f}".format(total) }}</strong></td>
+            </tr>
+
+        </tbody>
+    </table>
+
+    <!-- ===== BANK DETAILS (coloured table matching image) ===== -->
+    <table class="bank-details-table">
+        <thead>
+            <tr class="header-row">
+                <th style="background:#333;color:white;">BANK DETAILS</th>
+                <th style="background:#0066b2;color:white;">CFC Stanbic, Garden City Branch</th>
+                <th style="background:#388e3c;color:white;">KCB, Garden City Branch</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>
-                <strong>Training fee for 
-                {% if event.delegates %}
-                    {%- for delegate in event.delegates -%}
-                        {{ delegate.first_name }} {{ delegate.last_name }}{% if not loop.last %}, {% endif %}
-                    {%- endfor -%}
-                {% else %}
-                    {{ event.number_of_delegates }} Delegate(s)
-                {% endif %}
-                </strong><br> 
-                Course: {{ event.event_name }}<br> 
-                <em>Period: {{ frappe.utils.formatdate(event.start_date) }} - {{ frappe.utils.formatdate(event.end_date) }}</em><br> 
-                <em>Venue: {{ event.event_venue }}, {{ event.event_location }}</em> 
-            </td>
-                <td class="amount">{{ "{:,.2f}".format(event.charges_per_delegate) }}</td> 
-                <td class="amount">{{ "{:,.2f}".format(event.number_of_delegates * event.charges_per_delegate) }}</td> 
+                <th>ACCOUNT NAME:</th>
+                <td class="stanbic">CapaBuil Ltd</td>
+                <td class="kcb">CapaBuil Ltd</td>
             </tr>
             <tr>
-                <td colspan="2" style="text-align: right;">Tax (VAT @ 16%)</td> 
-                <td class="amount">{{ "{:,.2f}".format((event.number_of_delegates * event.charges_per_delegate) * 0.16) }}</td> 
+                <th>ACCOUNT NUMBER:</th>
+                <td class="stanbic">0100003293399</td>
+                <td class="kcb">1232573868</td>
             </tr>
-            <tr style="background: #f8f9fa; font-size: 13px;">
-                <td colspan="2" style="text-align: right;"><strong>TOTAL</strong></td> 
-                <td class="amount" style="color: #0066b2;"><strong>{{ "{:,.2f}".format(event.revenue) }}</strong></td> 
+            <tr class="mpesa-row">
+                <td><strong>LIPA NA M-PESA</strong></td>
+                <td><strong>Buy Goods &amp; Services</strong></td>
+                <td><strong>Till No. 5264625</strong></td>
             </tr>
         </tbody>
     </table>
 
-    <table class="bank-table">
-        <tr>
-            <td class="bank-col">
-                <div class="bank-title">BANK: CFC Stanbic</div> 
-                Branch: Garden City Branch<br> 
-                Account Name: CapaBuil Ltd<br> 
-                Account Number: <strong>0100003293399</strong> 
-            </td>
-            <td class="bank-col">
-                <div class="bank-title">BANK: KCB</div> 
-                Branch: Garden City Branch<br> 
-                Account Name: CapaBuil Ltd<br> 
-                Account Number: <strong>1232573868</strong> 
-            </td>
-        </tr>
-    </table>
-
-    <div class="mpesa-row">
-        LIPA NA M-PESA: Buy Goods & Services | Till No. 5264625 
-    </div>
-
+    <!-- ===== NOTES ===== -->
     <div class="notes">
-        <strong>NOTE: THIS IS NOT A TAX INVOICE</strong><br> 
-        1. Cheques should be addressed to CapaBuil Ltd  | 2. Ensure payment BEFORE event  | 3. Send proof of payment 
+        <strong>NOTE: THIS IS NOT A TAX INVOICE</strong><br>
+        1. Cheques should be addressed to CapaBuil Ltd &nbsp;|&nbsp; 2. Ensure payment BEFORE event &nbsp;|&nbsp; 3. Send proof of payment
     </div>
 
+    <!-- ===== FOOTER ===== -->
     <div class="footer">
-        DIT NO- NITA/TRN/958 | KRA PIN NO: P051447170J<br> 
-        <div class="warning">THIS EVENT WILL NOT BE CANCELLED OR POSTPONED</div> 
+        DIT NO- NITA/TRN/958 | KRA PIN NO: P051447170J<br>
+        <div class="warning">THIS EVENT WILL NOT BE CANCELLED OR POSTPONED</div>
     </div>
+
 </body>
 </html>
