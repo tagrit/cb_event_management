@@ -21,6 +21,10 @@
   "revenue",
   "delegates_section",
   "delegates",
+  "attendtion_section_section",
+  "attention_name",
+  "column_break_znyt",
+  "attention_title",
   "reminder_details_section",
   "column_break_ratx",
   "reminder_sent",
@@ -268,13 +272,33 @@
    "fieldname": "welcome_attachments",
    "fieldtype": "Table",
    "options": "Event Attachment"
+  },
+  {
+   "fieldname": "attendtion_section_section",
+   "fieldtype": "Section Break",
+   "label": "Attendtion Section"
+  },
+  {
+   "fieldname": "attention_name",
+   "fieldtype": "Data",
+   "label": "Attention Name"
+  },
+  {
+   "fieldname": "column_break_znyt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "The Training Manager",
+   "fieldname": "attention_title",
+   "fieldtype": "Data",
+   "label": "Attention Title"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-01-25 11:09:16.808052",
+ "modified": "2026-03-23 12:09:20.309059",
  "modified_by": "Administrator",
  "module": "Event Management",
  "name": "Event Registration",

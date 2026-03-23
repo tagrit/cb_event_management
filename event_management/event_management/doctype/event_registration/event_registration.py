@@ -194,25 +194,23 @@ class EventRegistration(Document):
             )
             
 
+         
     def _generate_pdf_attachments(self, template_args):
         attachments = []
         try:
             template_args.update({"is_pdf": True})
             settings = frappe.get_doc("Event Management Setting")
-
+ 
             def get_file_as_base64(file_url):
-                """Resolve any file URL to base64, works on both local and production."""
                 if not file_url:
                     return ""
                 try:
-                    # Use Frappe's File doctype — handles both public and private files
                     file_doc = frappe.get_doc("File", {"file_url": file_url})
                     content = file_doc.get_content()
                     if isinstance(content, str):
                         content = content.encode("utf-8")
                     return base64.b64encode(content).decode("utf-8")
                 except Exception:
-                    # Fallback: try direct filesystem path
                     clean = file_url.lstrip("/")
                     if clean.startswith("private/"):
                         path = frappe.get_site_path(clean)
@@ -221,14 +219,16 @@ class EventRegistration(Document):
                     if os.path.exists(path):
                         with open(path, "rb") as f:
                             return base64.b64encode(f.read()).decode("utf-8")
-                    frappe.log_error(f"Logo/signature file not found: {file_url}", "PDF Asset Missing")
+                    frappe.log_error(f"File not found: {file_url}", "PDF Asset Missing")
                     return ""
-
+ 
             template_args.update({
-                "logo_base64": get_file_as_base64(settings.company_logo),
+                "logo_base64":      get_file_as_base64(settings.company_logo),
                 "signature_base64": get_file_as_base64(settings.company_signature),
+                # ── NEW: stamp loaded from Event Management Setting ──────────
+                "stamp_base64":     get_file_as_base64(getattr(settings, "company_stamp", None)),
             })
-
+ 
             invitation_html = frappe.render_template(
                 "event_management/templates/attachments/training_invitation_letter.html",
                 template_args
@@ -237,7 +237,7 @@ class EventRegistration(Document):
                 "fname": f"Invitation_{self.name}.pdf",
                 "fcontent": get_pdf(invitation_html)
             })
-
+ 
             invoice_html = frappe.render_template(
                 "event_management/templates/attachments/proforma_invoice.html",
                 template_args
@@ -246,10 +246,10 @@ class EventRegistration(Document):
                 "fname": f"Proforma_{self.name}.pdf",
                 "fcontent": get_pdf(invoice_html)
             })
-
+ 
         except Exception:
             frappe.log_error(frappe.get_traceback(), "PDF Attachment Generation Failed")
-
+ 
         return attachments
             
 @frappe.whitelist(allow_guest=True)

@@ -11,7 +11,8 @@
   "cc_email",
   "column_break_sdnt",
   "calendar_link",
-  "company_logo"
+  "company_logo",
+  "company_stamp"
  ],
  "fields": [
   {
@@ -47,13 +48,18 @@
    "fieldname": "cc_email",
    "fieldtype": "Data",
    "label": "CC Email"
+  },
+  {
+   "fieldname": "company_stamp",
+   "fieldtype": "Attach Image",
+   "label": "Company Stamp"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-03-02 22:34:49.107682",
+ "modified": "2026-03-23 12:10:12.946850",
  "modified_by": "Administrator",
  "module": "Event Management",
  "name": "Event Management Setting",

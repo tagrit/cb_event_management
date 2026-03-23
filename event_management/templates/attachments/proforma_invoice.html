@@ -25,23 +25,10 @@
         .items-table td.amount { text-align: right; font-weight: bold; }
         .items-table td.rate { text-align: right; }
 
-        /* Subtotal / VAT row */
         .items-table tr.vat-row td { border-bottom: 1px solid #eee; }
         .items-table tr.total-row { background: #f8f9fa; font-size: 13px; }
         .items-table tr.total-row td { border-bottom: none; }
 
-        /* BANK SECTION */
-        .bank-outer { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        .bank-outer td { vertical-align: top; padding: 0; }
-        .bank-col { 
-            border: 1px solid #e0e0e0; 
-            border-radius: 4px; 
-            padding: 10px; 
-            background: #fafafa; 
-        }
-        .bank-title { font-weight: bold; color: #0066b2; border-bottom: 1px solid #eee; margin-bottom: 8px; padding-bottom: 4px; font-size: 11px; }
-
-        /* Bank details colored table (like image) */
         .bank-details-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border: 1px solid #ccc; }
         .bank-details-table th { background: #ffc107; color: #333; padding: 7px 10px; font-weight: bold; text-align: left; border: 1px solid #ccc; font-size: 10px; }
         .bank-details-table td { padding: 7px 10px; border: 1px solid #ccc; font-size: 10px; }
@@ -97,21 +84,13 @@
         <div style="clear:both;"></div>
     </div>
 
+    <!-- ===== CALCULATIONS ===== -->
+    {% set subtotal      = event.number_of_delegates * event.charges_per_delegate %}
+    {% set vat_per_person = event.charges_per_delegate * 0.16 %}
+    {% set vat           = subtotal * 0.16 %}
+    {% set total         = subtotal + vat %}
+
     <!-- ===== LINE ITEMS TABLE ===== -->
-    <!--
-        CALCULATION LOGIC:
-          subtotal  = number_of_delegates × charges_per_delegate
-          vat       = subtotal × 0.16
-          total     = subtotal + vat   (i.e. subtotal × 1.16)
-
-        Columns: No. | Description | @ (Rate per delegate) | Kes. (Line total)
-        VAT row:  spans description, shows vat amount in both @ and Kes columns
-        TOTAL:    spans description + @, shows total in Kes column only
-    -->
-    {% set subtotal = event.number_of_delegates * event.charges_per_delegate %}
-    {% set vat      = subtotal * 0.16 %}
-    {% set total    = subtotal + vat %}
-
     <table class="items-table">
         <thead>
             <tr>
@@ -125,7 +104,8 @@
 
             <!-- ── Training fee row ── -->
             <tr>
-                <td class="num">1.</td>
+                <!-- No. = number of delegates -->
+                <td class="num">{{ event.number_of_delegates }}.</td>
                 <td>
                     <strong>Training fee for:</strong><br>
                     {% if event.delegates %}
@@ -143,18 +123,19 @@
                     scheduled for <strong>{{ frappe.utils.formatdate(event.start_date) }} - {{ frappe.utils.formatdate(event.end_date) }}</strong>
                     at <strong>{{ event.event_venue }}, {{ event.event_location }}</strong>
                 </td>
-                <!-- Rate per delegate -->
+                <!-- @ = rate per delegate -->
                 <td class="rate">{{ "{:,.2f}".format(event.charges_per_delegate) }}</td>
-                <!-- Line total = delegates × rate -->
+                <!-- Kes. = subtotal (delegates × rate) -->
                 <td class="amount">{{ "{:,.2f}".format(subtotal) }}</td>
             </tr>
 
             <!-- ── VAT row ── -->
             <tr class="vat-row">
                 <td></td>
-                <td><strong>Tax (VAT @ 16%)</strong></td>
-                <!-- VAT amount shown in both rate and total columns (mirrors image layout) -->
-                <td class="rate">{{ "{:,.2f}".format(vat) }}</td>
+                <td><strong>Tax <em>(VAT @ 16%)</em></strong></td>
+                <!-- @ = VAT for one person -->
+                <td class="rate">{{ "{:,.2f}".format(vat_per_person) }}</td>
+                <!-- Kes. = total VAT for all delegates -->
                 <td class="amount">{{ "{:,.2f}".format(vat) }}</td>
             </tr>
 
@@ -168,7 +149,7 @@
         </tbody>
     </table>
 
-    <!-- ===== BANK DETAILS (coloured table matching image) ===== -->
+    <!-- ===== BANK DETAILS ===== -->
     <table class="bank-details-table">
         <thead>
             <tr class="header-row">
