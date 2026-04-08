@@ -122,26 +122,21 @@ class EventRegistration(Document):
             "path": "event_management/templates/emails/registration_confirmation.html"
         }
 
+
     def send_invitations_to_all_delegates(self):
         if not self.delegates:
             frappe.msgprint("No delegates found!")
             return
 
-        success_count = 0
         template_info = self._get_attendance_email_template()
-        
-        for delegate in self.delegates:
-            if delegate.confirmed:
-                continue
-            try:
-                self._send_single_invitation(delegate, template_info)
-                success_count += 1
-            except Exception:
-                frappe.log_error(frappe.get_traceback(), f"Invitation failed for {delegate.email}")
+        first_delegate = self.delegates[0]  # ← Get only the first delegate
 
-        if success_count > 0:
+        try:
+            self._send_single_invitation(first_delegate, template_info)
             self.db_set("invitation_sent", 1)
-            frappe.msgprint(f"✅ {success_count} Invitations sent successfully!")
+            frappe.msgprint(f"✅ Invitation sent to {first_delegate.first_name} {first_delegate.last_name}!")
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Invitation failed for {first_delegate.email}")
 
     def _send_single_invitation(self, delegate, template_info):
         base_url = get_url()
@@ -151,7 +146,7 @@ class EventRegistration(Document):
         )
 
         settings = frappe.get_doc("Event Management Setting")
-        cc = settings.cc_email or []  # 👈 grab CC from settings (adjust field name as needed)
+        cc = [settings.cc_email] if settings.cc_email else [] 
         
         template_args = {
             "event": self,
@@ -175,7 +170,8 @@ class EventRegistration(Document):
             message = frappe.render_template(email_template.response, template_args)
             frappe.sendmail(
                 recipients=[delegate.email],
-                cc=cc,  # 👈 added
+                cc=settings.cc_email,  # plain string
+                expose_recipients="header",  # ← forces CC to show in email header
                 subject=subject,
                 message=message,
                 attachments=attachments
@@ -187,7 +183,8 @@ class EventRegistration(Document):
             )
             frappe.sendmail(
                 recipients=[delegate.email],
-                cc=cc,  # 👈 added
+                cc=settings.cc_email,  # plain string
+                expose_recipients="header",  # ← forces CC to show in email header
                 subject=f"{self.event_name} Registration Confirmation",
                 message=message,
                 attachments=attachments
