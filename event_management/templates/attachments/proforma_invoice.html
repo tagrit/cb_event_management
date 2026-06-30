@@ -10,37 +10,80 @@
         .company-address { text-align: right; font-size:11px; color: #555; }
         .company-address strong { color: #0066b2; display: block; font-size: 12px; margin-bottom: 4px; }
 
-        .banner { background: #f0f4f8; padding: 8px; text-align: center; font-size: 9px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #dce4ec; }
+        /* ===== HEADER BANNER ===== */
+        .header-right-banner {
+            background: #0066b2;
+            color: white;
+            padding: 10px 16px;
+            
+        }
+        .header-right-banner .tagline {
+            font-size: 15px;
+            font-weight: bold;
+            color: #FFD700;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        .header-right-banner .contact {
+            font-size: 10px;
+            color: #dce8f5;
+            line-height: 1.6;
+        }
+        .header-right-banner .contact a { color: #9ecfff; text-decoration: none; }
+
+        /* ===== PROFORMA INVOICE TITLE BAR ===== */
+        .invoice-title-bar {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        .invoice-title-bar td.main {
+            background: #0066b2;
+            color: #FFD700;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            letter-spacing: 2px;
+            border: 1px solid #0055a0;
+        }
+
+
+        .banner { background: #f0f4f8; padding: 8px; text-align: center; font-size: 9px;  margin-bottom: 20px; border: 1px solid #dce4ec; }
         .banner a { color: #0066b2; font-weight: bold; text-decoration: none; }
 
-        .invoice-meta { overflow: hidden; margin-bottom: 20px; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+        .invoice-meta { overflow: hidden; margin-bottom: 20px; background: #fff; padding: 10px; border: 1px solid #000;  }
         .invoice-meta .left { float: left; }
         .invoice-meta .right { float: right; text-align: right; }
 
-        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .items-table th { background: #0066b2; color: white; padding: 10px; text-align: left; text-transform: uppercase; font-size: 10px; }
+        /* ===== ITEMS TABLE — all cell borders now visible ===== */
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #000; }
+        .items-table th { background: #0066b2; color: white; padding: 10px; text-align: left; text-transform: uppercase; font-size: 10px; border: 1px solid #0055a0; }
         .items-table th.align-right { text-align: right; }
-        .items-table td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .items-table td { padding: 10px; border: 1px solid #000; vertical-align: top; }
         .items-table td.num { text-align: center; }
         .items-table td.amount { text-align: right; font-weight: bold; }
         .items-table td.rate { text-align: right; }
 
-        .items-table tr.vat-row td { border-bottom: 1px solid #eee; }
+        .items-table tr.vat-row td { background: #fafafa; }
         .items-table tr.total-row { background: #f8f9fa; font-size: 13px; }
-        .items-table tr.total-row td { border-bottom: none; }
+        .items-table tr.total-row td { border-top: 2px solid #000; }
 
-        .bank-details-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border: 1px solid #ccc; }
-        .bank-details-table th { background: #ffc107; color: #333; padding: 7px 10px; font-weight: bold; text-align: left; border: 1px solid #ccc; font-size: 10px; }
-        .bank-details-table td { padding: 7px 10px; border: 1px solid #ccc; font-size: 10px; }
+        /* ===== BANK DETAILS — all cell borders now visible ===== */
+        .bank-details-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; border: 2px solid #000; }
+        .bank-details-table th { background: #ffc107; color: #333; padding: 7px 10px; font-weight: bold; text-align: left; border: 1px solid #000; font-size: 10px; }
+        .bank-details-table td { padding: 7px 10px; border: 1px solid #000; font-size: 10px; }
         .bank-details-table td.stanbic { background: #0066b2; color: white; font-weight: bold; }
         .bank-details-table td.kcb { background: #388e3c; color: white; font-weight: bold; }
         .bank-details-table .header-row th:first-child { background: #333; color: white; }
+        .bank-details-table .header-row th.stanbic-hdr { background: #0066b2; color: white; }
+        .bank-details-table .header-row th.kcb-hdr { background: #388e3c; color: white; }
         .bank-details-table .mpesa-row td { background: #388e3c; color: white; font-weight: bold; }
         .bank-details-table .mpesa-row td:first-child { background: #388e3c; }
 
-        .notes { background: #fff9db; border: 1px solid #ffe066; padding: 12px; border-radius: 4px; margin-top: 15px; }
+        .notes { background: #fff9db; border: 1px solid #ffe066; padding: 12px;  margin-top: 15px; }
         .footer { text-align: center; margin-top: 20px; font-size: 11px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
-        .warning { color: white; background: #e03131; padding: 8px; text-align: center; font-weight: bold; margin-top: 10px; border-radius: 4px; }
+        .warning { color: white; background: #e03131; padding: 8px; text-align: center; font-weight: bold; margin-top: 10px;  }
     </style>
 </head>
 <body>
@@ -56,13 +99,22 @@
                         style="max-height:70px;width:auto;">
                 {% endif %}
             </td>
-            <td class="company-address">
-                <strong>CAPABUIL LTD</strong>
-                Twiga Towers, 7th Floor, Nairobi Kenya<br>
-                +254 722 354 177 | +254 722 998 105<br>
-                P.O. Box 2495-00200 Nairobi<br>
-                info@capabuil.com | www.capabuil.com
+            <td>
+                <div class="header-right-banner">
+                    <div class="tagline">SPEED AND DEPENDABILITY</div>
+                    <div class="contact">
+                        Twiga Towers, 7th Floor | +254 722 354 177 | +254 722 998 105 |<br>
+                        P.O. Box 2495-00200 Nairobi | info@capabuil.com | www.capabuil.com
+                    </div>
+                </div>
             </td>
+        </tr>
+    </table>
+
+    <!-- ===== PROFORMA INVOICE TITLE BAR ===== -->
+    <table class="invoice-title-bar">
+        <tr>
+            <td class="main">PROFORMA INVOICE</td>
         </tr>
     </table>
 
@@ -162,8 +214,8 @@
         <thead>
             <tr class="header-row">
                 <th style="background:#333;color:white;">BANK DETAILS</th>
-                <th style="background:#0066b2;color:white;">CFC Stanbic, Garden City Branch</th>
-                <th style="background:#388e3c;color:white;">KCB, Garden City Branch</th>
+                <th class="stanbic-hdr">CFC Stanbic, Garden City Branch</th>
+                <th class="kcb-hdr">KCB, Garden City Branch</th>
             </tr>
         </thead>
         <tbody>
