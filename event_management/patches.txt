@@ -9,5 +9,8 @@
  event_management.patches.create_default_settings
  event_management.patches.add_trainer_management_fields
  event_management.patches.add_event_trainer_linking_fields
+ event_management.patches.backfill_event_reference_field
+ event_management.patches.increase_max_upload_file_size
+ event_management.patches.drop_event_name_unique_index
 
 

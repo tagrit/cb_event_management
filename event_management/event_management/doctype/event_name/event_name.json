@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:event_name",
+ "autoname": "format:EVT-{#####}",
  "creation": "2025-12-30 20:11:26.022865",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -13,11 +13,10 @@
  "fields": [
   {
    "fieldname": "event_name",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "in_list_view": 1,
    "label": "Event Name",
-   "reqd": 1,
-   "unique": 1
+   "reqd": 1
   },
   {
    "fieldname": "column_break_mnnh",
@@ -36,7 +35,7 @@
  "modified_by": "Administrator",
  "module": "Event Management",
  "name": "Event Name",
- "naming_rule": "By fieldname",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -53,7 +52,9 @@
   }
  ],
  "row_format": "Dynamic",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "event_name"
 }

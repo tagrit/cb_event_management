@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "section_break_urtp",
+  "event_reference",
   "event_name",
   "event_location",
   "start_date",
@@ -54,12 +55,19 @@
    "label": "Event Details"
   },
   {
-   "fieldname": "event_name",
+   "fieldname": "event_reference",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Event Name",
+   "label": "Event",
    "options": "Event Name",
    "reqd": 1
+  },
+  {
+   "fetch_from": "event_reference.event_name",
+   "fieldname": "event_name",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Event Name",
+   "read_only": 1
   },
   {
    "fieldname": "event_location",

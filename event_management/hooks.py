@@ -74,8 +74,12 @@ app_home = "/app/workspace/" + app_name
 # Installation
 # ------------
 
-# before_install = "event_management.install.before_install"
-# after_install = "event_management.install.after_install"
+after_install = "event_management.install.after_install"
+
+# Migration
+# ------------
+
+after_migrate = "event_management.install.after_migrate"
 
 # Uninstallation
 # ------------
